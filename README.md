@@ -6,11 +6,13 @@ Apus does what the notebook `perch_all_in_one` does, and gives the same results 
 
 ## Using it
 
-Apus is not online yet. To run it on your computer:
+Open **<https://calotriton.github.io/Apus/>** in Chrome, Edge or Firefox. The first visit downloads Perch (409 MB) once; after that, it starts from the browser's copy.
 
-1. Put the model files in `model/`, as described in [model/README.md](model/README.md). Online, they download by themselves.
+To run it from your own computer instead (for development):
+
+1. Put the model files in `model/`, as described in [model/README.md](model/README.md).
 2. Start the local server: `py tools/serve.py` on Windows, or `python3 tools/serve.py` elsewhere.
-3. Open <http://127.0.0.1:8000/app/> in Chrome, Edge or Firefox.
+3. Open <http://127.0.0.1:8000/app/>.
 
 In the app:
 
