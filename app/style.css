@@ -52,6 +52,20 @@ main, .top, footer { max-width: 920px; margin: 0 auto; padding: 0 16px; }
 h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
 .brand p { margin: 0; color: var(--ink-2); }
 
+.top-right { display: flex; align-items: center; gap: 8px; }
+.icon-button { display: grid; place-items: center; width: 38px; height: 38px; flex: none; cursor: pointer;
+               border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink-2); }
+.icon-button:hover { color: var(--accent); border-color: var(--accent); }
+.icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
+                   stroke-linejoin: round; }
+.icon-button .sun { display: none; }       /* the button shows the mode it switches to */
+:root[data-theme="dark"] .icon-button .sun { display: block; }
+:root[data-theme="dark"] .icon-button .moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .icon-button .sun { display: block; }
+  :root:not([data-theme="light"]) .icon-button .moon { display: none; }
+}
+
 .chip { display: inline-flex; flex-direction: column; gap: 4px; padding: 6px 12px; border: 1px solid var(--line);
         border-radius: 999px; background: var(--card); font-size: 0.9rem; color: var(--ink-2); max-width: 100%; }
 .chip.ready { color: var(--accent); border-color: var(--accent); }

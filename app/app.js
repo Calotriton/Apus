@@ -34,6 +34,27 @@ for (const k of FIELDS) $(k).addEventListener('change', () => { checkTopK(); sav
 $('extract_clips').addEventListener('change', () => { $('clip-options').hidden = !$('extract_clips').checked; });
 $('backend').addEventListener('change', () => location.reload());
 
+// ── Day and night ─────────────────────────────────────────────────────────────────────────────────────────
+// The page follows the system until the user picks the other mode; picking the system's mode follows it again
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => (document.documentElement.dataset.theme ?? (systemDark.matches ? 'dark' : 'light')) === 'dark';
+function labelTheme() {
+  const label = isDark() ? 'Day mode' : 'Night mode';
+  $('theme').setAttribute('aria-label', label);
+  $('theme').title = label;
+}
+$('theme').addEventListener('click', () => {
+  const next = isDark() ? 'light' : 'dark';
+  const differs = (next === 'dark') !== systemDark.matches;
+  if (differs) document.documentElement.dataset.theme = next;
+  else delete document.documentElement.dataset.theme;
+  try { if (differs) localStorage.setItem('apus.theme', next); else localStorage.removeItem('apus.theme'); }
+  catch { /* storage blocked: the choice lasts until the page closes */ }
+  labelTheme();
+});
+systemDark.addEventListener('change', labelTheme);
+labelTheme();
+
 // ── The worker ────────────────────────────────────────────────────────────────────────────────────────────
 const worker = new Worker('worker.js', { type: 'module' });
 worker.postMessage({ type: 'init', backend: $('backend').value });

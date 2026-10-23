@@ -8,6 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M4 14c6-1 9 0 12 4 3-4 6-5 12-4-5 1-8 3-10 7l-2 3-2-3c-2-4-5-6-10-7z' fill='white'/%3E%3C/svg%3E">
 <!-- GitHub Pages cannot send the headers that multi-threaded WebAssembly needs; this service worker adds them -->
 <script src="coi-serviceworker.min.js"></script>
+<!-- The saved day/night choice, applied before the page is drawn so it does not flash -->
+<script>try { const t = localStorage.getItem('apus.theme'); if (t) document.documentElement.dataset.theme = t; } catch { }</script>
 <link rel="stylesheet" href="style.css">
 <script type="module" src="app.js"></script>
 </head>
@@ -20,7 +22,13 @@
       <p>Identify species in your recordings with Google's Perch 2.0</p>
     </div>
   </div>
-  <div id="model" class="chip" role="status" aria-live="polite"><span id="model-text">Loading</span><span class="chip-bar"><span id="model-bar"></span></span></div>
+  <div class="top-right">
+    <div id="model" class="chip" role="status" aria-live="polite"><span id="model-text">Loading</span><span class="chip-bar"><span id="model-bar"></span></span></div>
+    <button type="button" class="icon-button" id="theme" aria-label="Night mode" title="Night mode">
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+    </button>
+  </div>
 </header>
 
 <main>
