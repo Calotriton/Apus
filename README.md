@@ -57,6 +57,7 @@ The page also shows the summaries and a chart of the most detected species.
 - **Tests:** `uv run pytest`, from an environment made with `uv sync`. In WSL, keep the environment off the Windows drive, for example with `UV_PROJECT_ENVIRONMENT=~/.venvs/apus`.
 - **Parity with the notebook:** `tests/test_notebook_parity.py` also needs a reference made by `tests/tools/notebook_reference.py`. That tool reads which WABAD recordings to use from a local list, `tests/data/notebook_fixture.json`, which is not in the repository.
 - **The real app:** `tests/tools/browser_e2e.py` drives it in Edge and compares the results with that reference.
+- **The logo** ("Swift and call", pixel art) is drawn as text grids in `tools/make_icons.py`. Run `py tools/make_icons.py` after editing them to redraw `app/icons/`.
 
 ## Credits
 
