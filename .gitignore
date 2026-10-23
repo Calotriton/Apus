@@ -1,0 +1,16 @@
+# Claude's working files stay local: the repository is public (the owner's shared-repo rule)
+.claude/
+
+# Environments and caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# The model and its class lists live on Hugging Face (ADR 0005); local copies are for development
+model/*.onnx
+model/*.csv
+model/HOW_TO_UPLOAD.txt
+
+# Test recordings and outputs: licensed or personal audio never goes to git
+tests/data/

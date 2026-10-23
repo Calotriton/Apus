@@ -1,0 +1,29 @@
+[project]
+name = "apus"
+version = "0.1.0"
+description = "Run Google's Perch 2.0 on your recordings, in your browser."
+requires-python = ">=3.12"
+# The app's Python (app/apus) runs in Pyodide, which provides its packages. This file only sets up the
+# environment for the tests, with the versions Pyodide 314.0.7 provides (ADR 0003).
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "numpy==2.4.6",
+    "scipy==1.18.0",
+    "pandas==3.0.2",
+    "soundfile==0.12.1",
+    # Tests only: the reference implementations Apus must reproduce, and the model runtime.
+    "librosa==0.11.0",
+    "onnxruntime>=1.23",
+    "pytest>=8",
+]
+
+[tool.uv]
+package = false
+# librosa sets no minimum numba version; without this, uv picks numba 0.53.1, which does not build.
+constraint-dependencies = ["numba>=0.60"]
+
+[tool.pytest.ini_options]
+pythonpath = ["app"]
+testpaths = ["tests"]

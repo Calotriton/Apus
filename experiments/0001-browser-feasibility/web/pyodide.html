@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Apus spike: Pyodide</title>
+</head>
+<body>
+<pre id="log"></pre>
+<script type="module">
+// Does the notebook's own Python preprocessing run in the browser, and what does Pyodide cost to load?
+import { loadPyodide } from 'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs';
+
+const tag = new URLSearchParams(location.search).get('tag') || 'pyodide';
+const out = { ua: navigator.userAgent, started: new Date().toISOString() };
+const log = (s) => { document.getElementById('log').textContent += `${s}\n`; document.title = s.slice(0, 80); };
+const post = (o) => fetch(`/results/${tag}`, { method: 'POST', body: JSON.stringify(o, null, 1) });
+
+try {
+  let t = performance.now();
+  const py = await loadPyodide();
+  out.loadPyodideS = +((performance.now() - t) / 1000).toFixed(2);
+  t = performance.now();
+  await py.loadPackage(['numpy', 'scipy', 'soundfile']);
+  out.loadNumpyScipySoundfileS = +((performance.now() - t) / 1000).toFixed(2);
+  t = performance.now();
+  await py.loadPackage(['pandas']);
+  out.loadPandasS = +((performance.now() - t) / 1000).toFixed(2);
+  log(`pyodide ${out.loadPyodideS} s, numpy+scipy+soundfile ${out.loadNumpyScipySoundfileS} s, pandas ${out.loadPandasS} s`);
+
+  // librosa.load(sr=32000, mono=True, res_type="polyphase") without librosa, then §2's frame + normalise
+  py.runPython(`
+import io, numpy as np, scipy, scipy.signal, soundfile as sf
+SR, WIN = 32000, 160000
+
+def load_audio(data):
+    y, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
+    if y.ndim > 1:
+        y = np.mean(y.T, axis=0)                      # librosa.to_mono
+    if sr != SR:
+        g = int(np.gcd(sr, SR))
+        n = int(np.ceil(y.shape[-1] * (float(SR) / sr)))
+        y_hat = scipy.signal.resample_poly(y, SR // g, sr // g, axis=-1)
+        y_hat = np.pad(y_hat, (0, max(0, n - len(y_hat))))[:n]   # librosa's fix_length
+        y = np.asarray(y_hat, dtype=y.dtype)
+    return y
+
+def frames_of(y, hop=WIN):
+    if len(y) < WIN:
+        lpad = (WIN - len(y)) // 2
+        y = np.pad(y, (lpad, WIN - len(y) - lpad))
+    n = 1 + (len(y) - WIN) // hop
+    return np.stack([y[i * hop: i * hop + WIN] for i in range(n)])
+
+def peak_normalize(frames, target_peak=0.25):
+    frames = frames.astype(np.float32).copy()
+    frames -= frames.mean(axis=-1, keepdims=True)
+    peak = np.max(np.abs(frames), axis=-1, keepdims=True)
+    frames = np.divide(frames, peak, out=np.zeros_like(frames), where=peak > 0.0)
+    return frames * target_peak
+`);
+  out.versions = py.runPython('f"numpy {np.__version__}, scipy {scipy.__version__}, soundfile {sf.__version__}"');
+  const man = await (await fetch('manifest.json')).json();
+  out.files = [];
+  for (const f of man.files.filter((f) => !f.wav.startsWith('long/'))) {
+    const wav = new Uint8Array(await (await fetch(f.wav)).arrayBuffer());
+    const ref = new Uint8Array(await (await fetch(`ref/${f.name}.win.f32`)).arrayBuffer());
+    py.globals.set('wav_bytes', wav);
+    py.globals.set('ref_bytes', ref);
+    t = performance.now();
+    const r = py.runPython(`
+fr = peak_normalize(frames_of(load_audio(wav_bytes.to_py())))
+ref = np.frombuffer(ref_bytes.to_py(), dtype="<f4").reshape(-1, WIN)
+[len(fr), float(np.abs(fr[:len(ref)] - ref).max())]
+`).toJs();
+    out.files.push({ name: f.name, windows: r[0], windowsNotebook: f.n_windows, maxAbsWindowDiff: r[1],
+                     ms: +(performance.now() - t).toFixed(0) });
+    log(`${f.name}: ${r[0]} windows, max |diff| ${r[1]}`);
+  }
+  out.finished = new Date().toISOString();
+} catch (e) {
+  out.error = String((e && e.stack) || e);
+  log(`ERROR ${e}`);
+}
+await post(out);
+log('DONE');
+</script>
+</body>
+</html>

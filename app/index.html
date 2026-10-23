@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apus · Perch 2.0 in your browser</title>
+<meta name="description" content="Identify the species in your sound recordings with Google's Perch 2.0, with nothing to install. Your recordings never leave your computer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M4 14c6-1 9 0 12 4 3-4 6-5 12-4-5 1-8 3-10 7l-2 3-2-3c-2-4-5-6-10-7z' fill='white'/%3E%3C/svg%3E">
+<!-- GitHub Pages cannot send the headers that multi-threaded WebAssembly needs; this service worker adds them -->
+<script src="coi-serviceworker.min.js"></script>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M4 14c6-1 9 0 12 4 3-4 6-5 12-4-5 1-8 3-10 7l-2 3-2-3c-2-4-5-6-10-7z"/></svg>
+    <div>
+      <h1>Apus</h1>
+      <p>Identify species in your recordings with Google's Perch 2.0</p>
+    </div>
+  </div>
+  <div id="model" class="chip" role="status" aria-live="polite"><span id="model-text">Loading</span><span class="chip-bar"><span id="model-bar"></span></span></div>
+</header>
+
+<main>
+  <p class="privacy">Nothing to install, and nothing is uploaded: Perch runs inside this browser tab, on your computer.</p>
+
+  <section class="card">
+    <h2><span class="num">1</span>Recordings</h2>
+    <div class="row">
+      <button type="button" class="button" id="pick-folder">Choose a folder</button>
+      <button type="button" class="button" id="pick-files">Choose files</button>
+      <input type="file" id="folder-input" webkitdirectory hidden>
+      <input type="file" id="files-input" multiple accept=".wav,.flac,.ogg,.mp3,.m4a,.aif,.aiff" hidden>
+    </div>
+    <p class="hint" id="recordings-summary">Each sub-folder of the folder is one dataset (a site, a recorder…). WAV, FLAC and OGG files work.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">2</span>Settings</h2>
+    <div class="grid">
+      <label>Threshold
+        <input type="number" id="threshold" min="0.01" max="0.99" step="0.01" value="0.10">
+        <small>Lowest confidence (0–1) that counts as a detection</small></label>
+      <label>Window hop
+        <select id="hop_s"><option value="5">5 s: windows back to back</option><option value="2.5">2.5 s: windows overlap by half</option></select>
+        <small>Perch listens to 5 s windows</small></label>
+      <label>Species kept per window
+        <input type="number" id="top_k" min="1" max="200" step="1" value="10">
+        <small id="top-k-hint">The best-scoring species of each window</small></label>
+      <label>CSV separator
+        <select id="csv_separator"><option value=",">Comma (,)</option><option value=";">Semicolon (;), for Excel in many languages</option></select>
+        <small>Semicolon files use a decimal comma</small></label>
+    </div>
+
+    <div class="optional">
+      <div class="file-row">
+        <span class="label">Species list</span>
+        <button type="button" class="button small" id="pick-list-file">File</button>
+        <button type="button" class="button small" id="pick-list-folder">Folder of lists</button>
+        <span class="file-name" id="list-name">None: every Perch class is kept</span>
+        <button type="button" class="link" id="clear-list" hidden>Remove</button>
+        <input type="file" id="list-file-input" accept=".txt,.csv" hidden>
+        <input type="file" id="list-folder-input" webkitdirectory hidden>
+      </div>
+      <p class="hint">One species per line. A file named like a dataset (<code>SiteA.txt</code>) applies to that dataset; a file whose name starts with a recording's name applies to that recording.</p>
+      <div class="file-row">
+        <span class="label">Synonyms</span>
+        <button type="button" class="button small" id="pick-syn">File</button>
+        <span class="file-name" id="syn-name">None</span>
+        <button type="button" class="link" id="clear-syn" hidden>Remove</button>
+        <input type="file" id="syn-input" accept=".csv,.txt" hidden>
+      </div>
+      <p class="hint">A table with two columns, your name then Perch's: <code>Corvus monedula,Coloeus monedula</code>.</p>
+    </div>
+
+    <label class="check"><input type="checkbox" id="raven_tables"> Raven selection tables, one per recording</label>
+    <label class="check"><input type="checkbox" id="extract_clips"> Audio clips of the detections, to listen to</label>
+    <div class="grid" id="clip-options" hidden>
+      <label>Clips per confidence band
+        <input type="number" id="clips_per_band" min="1" max="1000" step="1" value="10">
+        <small>Per species, in each band 0.1–0.2, 0.2–0.3…</small></label>
+      <label>Seconds added on each side
+        <input type="number" id="clip_extra_s" min="0" max="10" step="0.5" value="1"></label>
+      <label class="wide">Only these species
+        <input type="text" id="clip_species" placeholder="All species, or e.g. Turdus merula, Parus major"></label>
+    </div>
+
+    <details class="advanced">
+      <summary>Advanced</summary>
+      <label class="check"><input type="checkbox" id="resume" checked> Continue a stopped run: skip recordings already analysed in the output</label>
+      <label>Compute on
+        <select id="backend"><option value="auto">The graphics card if it passes a check, otherwise the CPU</option><option value="cpu">The CPU only</option></select>
+        <small>Changing this reloads the page</small></label>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">3</span>Output</h2>
+    <div class="row" id="folder-row" hidden>
+      <button type="button" class="button" id="pick-output">Choose an output folder</button>
+      <span class="file-name" id="output-name"></span>
+    </div>
+    <p class="hint" id="output-hint">Results stay in this browser, and you download them as a ZIP file at the end.</p>
+    <button type="button" class="link" id="clear-stored">Delete the results stored in this browser</button>
+  </section>
+
+  <div class="actions">
+    <button type="button" class="primary" id="run" disabled>Run Perch</button>
+    <button type="button" class="button" id="stop" hidden>Stop</button>
+    <p class="hint" id="run-hint">Choose your recordings first.</p>
+  </div>
+  <p class="alert" id="alert" role="alert" hidden></p>
+
+  <section class="card" id="progress" hidden>
+    <div class="bar"><div id="bar-fill"></div></div>
+    <p id="progress-text"></p>
+  </section>
+
+  <section class="card" id="results" hidden>
+    <h2>Results</h2>
+    <div id="summary"></div>
+    <div class="row" id="downloads"></div>
+    <h3>Most detected species</h3>
+    <div id="chart"></div>
+    <h3>Species</h3>
+    <div class="table-wrap"><table id="species-table"></table></div>
+    <h3>Datasets</h3>
+    <div class="table-wrap"><table id="dataset-table"></table></div>
+    <details id="log-box"><summary>Messages</summary><ul id="log"></ul></details>
+  </section>
+</main>
+
+<footer>
+  <p>Perch 2.0 © Google, Apache 2.0 licence: van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
+     ONNX conversion by Justin Chu. Runs on <a href="https://onnxruntime.ai">ONNX Runtime Web</a> and <a href="https://pyodide.org">Pyodide</a>.
+     Apus is not affiliated with Google.</p>
+  <p>The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.</p>
+</footer>
+</body>
+</html>

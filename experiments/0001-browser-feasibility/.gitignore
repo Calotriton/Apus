@@ -1,0 +1,11 @@
+web/fixture/
+web/ref/
+web/model/
+web/ort/
+web/long/
+web/manifest.json
+py_cache/
+profiles/
+# They name WABAD recordings and give per-file detection counts; the repository is public
+recordings.json
+results/
