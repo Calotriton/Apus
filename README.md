@@ -16,7 +16,7 @@ To run it from your own computer instead (for development):
 
 In the app:
 
-1. **Recordings.** Choose a folder, in which each sub-folder is one dataset (a site, a recorder…), or choose single files. WAV, FLAC and OGG work.
+1. **Recordings.** Choose a folder, in which each sub-folder is one dataset (a site, a recorder…), or choose single files. You can also drop them on the page. WAV, FLAC and OGG work.
 2. **Settings.** These are the notebook's:
    - threshold, window hop and species kept per window;
    - species lists and synonyms;
@@ -57,7 +57,7 @@ The page also shows the summaries and a chart of the most detected species.
 - **Tests:** `uv run pytest`, from an environment made with `uv sync`. In WSL, keep the environment off the Windows drive, for example with `UV_PROJECT_ENVIRONMENT=~/.venvs/apus`.
 - **Parity with the notebook:** `tests/test_notebook_parity.py` also needs a reference made by `tests/tools/notebook_reference.py`. That tool reads which WABAD recordings to use from a local list, `tests/data/notebook_fixture.json`, which is not in the repository.
 - **The real app:** `tests/tools/browser_e2e.py` drives it in Edge and compares the results with that reference.
-- **The logo** ("Swift and call", pixel art) is drawn as text grids in `tools/make_icons.py`. Run `py tools/make_icons.py` after editing them to redraw `app/icons/`.
+- **The logo** ("Swift and call") is drawn as SVG shapes in `tools/make_icons.py`. Run `py tools/make_icons.py` after editing them to redraw `app/icons/`. It needs Edge or Chrome for the PNG copies.
 
 ## Credits
 

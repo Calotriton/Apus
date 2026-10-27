@@ -34,7 +34,10 @@ def run_app():
                 page.select_option("#backend", "cpu")
         page.wait_for_selector("#model.ready, #alert:not([hidden])", timeout=900_000)
         print(f"ready after {time.time() - t0:.0f} s: {page.inner_text('#model-text')}")
+        if not page.is_visible("#clear-stored"):              # it sits in Advanced
+            page.click("details.advanced summary")
         page.click("#clear-stored")                            # start from an empty browser store
+        page.click("#ask-yes")                                 # the page's own confirmation dialog
         page.select_option("#csv_separator", ";")
         page.check("#raven_tables")
         page.check("#extract_clips")

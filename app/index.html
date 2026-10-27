@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Apus · Perch 2.0 in your browser</title>
 <meta name="description" content="Identify the species in your sound recordings with Google's Perch 2.0, with nothing to install. Your recordings never leave your computer.">
+<meta name="theme-color" content="#f4f6f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1312" media="(prefers-color-scheme: dark)">
 <!-- The logo, "Swift and call": drawn in tools/make_icons.py -->
-<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/logo-32.png">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- GitHub Pages cannot send the headers that multi-threaded WebAssembly needs; this service worker adds them -->
 <script src="coi-serviceworker.min.js"></script>
@@ -17,131 +19,199 @@
 <script type="module" src="app.js"></script>
 </head>
 <body>
+<svg width="0" height="0" class="defs" aria-hidden="true">
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h3.6l2 2.2h7.4a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M13.5 3.5V9H19"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4.5v10.5M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h1.5M7 9v6M10.5 5.5v13M14 8.5v7M17.5 6.5v11M21 12h-.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+</svg>
+
 <header class="top">
   <div class="brand">
-    <img class="logo" src="icons/logo-32.png" width="64" height="64" alt="">
+    <img class="logo" src="icons/logo.svg" width="40" height="40" alt="">
     <div>
       <h1>Apus</h1>
-      <p>Identify species in your recordings with Google's Perch 2.0</p>
+      <p class="tagline">Species in your recordings, with Google's Perch 2.0</p>
     </div>
   </div>
   <div class="top-right">
-    <div id="model" class="chip" role="status" aria-live="polite"><span id="model-text">Loading</span><span class="chip-bar"><span id="model-bar"></span></span></div>
+    <div id="model" class="pill" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span><span id="model-text">Loading</span>
+      <span class="pill-bar" aria-hidden="true"><span id="model-bar"></span></span>
+    </div>
     <button type="button" class="icon-button" id="theme" aria-label="Night mode" title="Night mode">
-      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
     </button>
   </div>
 </header>
 
-<main>
-  <p class="privacy">Nothing to install, and nothing is uploaded: Perch runs inside this browser tab, on your computer.</p>
+<div class="layout">
+  <main class="stage">
+    <section class="card job" id="recordings" aria-labelledby="recordings-title">
+      <div class="drop">
+        <span class="drop-icon" aria-hidden="true"><svg><use href="#i-wave"/></svg></span>
+        <div class="drop-text">
+          <h2 id="recordings-title">Recordings</h2>
+          <p id="recordings-summary">Drop a folder or audio files here, or choose them. Each sub-folder is one dataset, such as a site or a recorder.</p>
+        </div>
+        <div class="drop-actions">
+          <button type="button" class="button" id="pick-folder"><svg aria-hidden="true"><use href="#i-folder"/></svg>Choose a folder</button>
+          <button type="button" class="button" id="pick-files"><svg aria-hidden="true"><use href="#i-file"/></svg>Choose files</button>
+        </div>
+        <p class="formats">WAV, FLAC and OGG files work.</p>
+        <input type="file" id="folder-input" webkitdirectory hidden>
+        <input type="file" id="files-input" multiple accept=".wav,.flac,.ogg,.mp3,.m4a,.aif,.aiff" hidden>
+      </div>
+      <div class="run-bar">
+        <button type="button" class="primary" id="run" disabled><svg aria-hidden="true"><use href="#i-play"/></svg>Run Perch</button>
+        <p class="hint" id="run-hint">Choose your recordings first.</p>
+        <p class="settings-line" id="settings-line" hidden><span id="settings-text"></span> <a href="#settings" class="to-settings">Change</a></p>
+      </div>
+    </section>
 
-  <section class="card">
-    <h2><span class="num">1</span>Recordings</h2>
-    <div class="row">
-      <button type="button" class="button" id="pick-folder">Choose a folder</button>
-      <button type="button" class="button" id="pick-files">Choose files</button>
-      <input type="file" id="folder-input" webkitdirectory hidden>
-      <input type="file" id="files-input" multiple accept=".wav,.flac,.ogg,.mp3,.m4a,.aif,.aiff" hidden>
+    <p class="alert" id="alert" role="alert" hidden></p>
+
+    <section class="card" id="progress" hidden aria-labelledby="progress-title">
+      <div class="progress-head">
+        <h2 id="progress-title">Analysing</h2>
+        <span class="pct" id="progress-pct">0%</span>
+        <button type="button" class="button" id="stop"><svg aria-hidden="true"><use href="#i-stop"/></svg>Stop</button>
+      </div>
+      <div class="bar" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar"><div id="bar-fill"></div></div>
+      <p id="progress-text"></p>
+    </section>
+
+    <section class="card placeholder" id="results-empty" aria-labelledby="results-empty-title">
+      <div class="ghost" aria-hidden="true"><span style="--f: 0.92"></span><span style="--f: 0.7"></span><span style="--f: 0.46"></span><span style="--f: 0.3"></span></div>
+      <div>
+        <h2 id="results-empty-title">Results appear here</h2>
+        <p class="hint">After a run: the counts, the most detected species, and tables you can sort. The files (detections, summaries, Raven tables, clips) go to your folder or into a ZIP file.</p>
+      </div>
+    </section>
+
+    <section class="card results" id="results" hidden aria-labelledby="results-title" tabindex="-1">
+      <div class="results-head">
+        <h2 id="results-title">Results</h2>
+        <div id="downloads"></div>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="notice" id="failed" hidden></div>
+      <div id="summary"></div>
+      <h3>Most detected species</h3>
+      <div id="chart"></div>
+      <h3>Species</h3>
+      <div class="table-wrap"><table id="species-table"></table></div>
+      <h3>Datasets</h3>
+      <div class="table-wrap"><table id="dataset-table"></table></div>
+      <details id="log-box"><summary>Messages</summary><ul id="log"></ul></details>
+    </section>
+  </main>
+
+  <aside class="panel" id="settings" aria-labelledby="settings-title">
+    <div class="panel-head">
+      <h2 id="settings-title">Settings</h2>
+      <span class="saved">Saved in this browser</span>
     </div>
-    <p class="hint" id="recordings-summary">Each sub-folder of the folder is one dataset (a site, a recorder…). WAV, FLAC and OGG files work.</p>
-  </section>
 
-  <section class="card">
-    <h2><span class="num">2</span>Settings</h2>
-    <div class="grid">
-      <label>Threshold
-        <input type="number" id="threshold" min="0.01" max="0.99" step="0.01" value="0.10">
-        <small>Lowest confidence (0–1) that counts as a detection</small></label>
-      <label>Window hop
-        <select id="hop_s"><option value="5">5 s: windows back to back</option><option value="2.5">2.5 s: windows overlap by half</option></select>
-        <small>Perch listens to 5 s windows</small></label>
-      <label>Species kept per window
-        <input type="number" id="top_k" min="1" max="200" step="1" value="10">
-        <small id="top-k-hint">The best-scoring species of each window</small></label>
-      <label>CSV separator
-        <select id="csv_separator"><option value=",">Comma (,)</option><option value=";">Semicolon (;), for Excel in many languages</option></select>
-        <small>Semicolon files use a decimal comma</small></label>
-    </div>
+    <section class="group">
+      <h3>Detection</h3>
+      <div class="field">
+        <label for="threshold">Threshold</label>
+        <div class="slider">
+          <input type="range" id="threshold-range" min="0.01" max="0.99" step="0.01" value="0.10" aria-label="Threshold" aria-describedby="threshold-hint">
+          <input type="number" id="threshold" min="0.01" max="0.99" step="0.01" value="0.10" aria-describedby="threshold-hint">
+        </div>
+        <small id="threshold-hint">The lowest confidence score (0 to 1) that counts as a detection</small>
+      </div>
+      <div class="field">
+        <label for="hop_s">Window hop</label>
+        <select id="hop_s" aria-describedby="hop-hint"><option value="5">5 s: windows back to back</option><option value="2.5">2.5 s: windows overlap by half</option></select>
+        <small id="hop-hint">Perch listens to 5 s windows</small>
+      </div>
+      <div class="field">
+        <label for="top_k">Species kept per window</label>
+        <input type="number" id="top_k" min="1" max="200" step="1" value="10" aria-describedby="top-k-hint">
+        <small id="top-k-hint">The best-scoring species of each window</small>
+      </div>
+    </section>
 
-    <div class="optional">
-      <div class="file-row">
-        <span class="label">Species list</span>
-        <button type="button" class="button small" id="pick-list-file">File</button>
-        <button type="button" class="button small" id="pick-list-folder">Folder of lists</button>
+    <section class="group">
+      <h3>Species names <span class="tag">Optional</span></h3>
+      <div class="file-field">
+        <span class="label" id="list-label">Species list</span>
         <span class="file-name" id="list-name">None: every Perch class is kept</span>
-        <button type="button" class="link" id="clear-list" hidden>Remove</button>
+        <div class="file-actions">
+          <button type="button" class="button small" id="pick-list-file" aria-describedby="list-label">File</button>
+          <button type="button" class="button small" id="pick-list-folder" aria-describedby="list-label">Folder of lists</button>
+          <button type="button" class="link" id="clear-list" hidden>Remove</button>
+        </div>
         <input type="file" id="list-file-input" accept=".txt,.csv" hidden>
         <input type="file" id="list-folder-input" webkitdirectory hidden>
+        <small>One species per line. A file named like a dataset, such as <code>SiteA.txt</code>, applies to that dataset. A file whose name starts with a recording's name applies to that recording.</small>
       </div>
-      <p class="hint">One species per line. A file named like a dataset (<code>SiteA.txt</code>) applies to that dataset; a file whose name starts with a recording's name applies to that recording.</p>
-      <div class="file-row">
-        <span class="label">Synonyms</span>
-        <button type="button" class="button small" id="pick-syn">File</button>
+      <div class="file-field">
+        <span class="label" id="syn-label">Synonyms</span>
         <span class="file-name" id="syn-name">None</span>
-        <button type="button" class="link" id="clear-syn" hidden>Remove</button>
+        <div class="file-actions">
+          <button type="button" class="button small" id="pick-syn" aria-describedby="syn-label">File</button>
+          <button type="button" class="link" id="clear-syn" hidden>Remove</button>
+        </div>
         <input type="file" id="syn-input" accept=".csv,.txt" hidden>
+        <small>Two columns, your name then Perch's, for example <code>Corvus monedula,Coloeus monedula</code></small>
       </div>
-      <p class="hint">A table with two columns, your name then Perch's: <code>Corvus monedula,Coloeus monedula</code>.</p>
-    </div>
+    </section>
 
-    <label class="check"><input type="checkbox" id="raven_tables"> Raven selection tables, one per recording</label>
-    <label class="check"><input type="checkbox" id="extract_clips"> Audio clips of the detections, to listen to</label>
-    <div class="grid" id="clip-options" hidden>
-      <label>Clips per confidence band
-        <input type="number" id="clips_per_band" min="1" max="1000" step="1" value="10">
-        <small>Per species, in each band 0.1–0.2, 0.2–0.3…</small></label>
-      <label>Seconds added on each side
-        <input type="number" id="clip_extra_s" min="0" max="10" step="0.5" value="1"></label>
-      <label class="wide">Only these species
-        <input type="text" id="clip_species" placeholder="All species, or e.g. Turdus merula, Parus major"></label>
-    </div>
+    <section class="group">
+      <h3>Output</h3>
+      <div class="file-field" id="folder-row" hidden>
+        <span class="label" id="output-label">Save to</span>
+        <span class="file-name" id="output-name">No folder chosen</span>
+        <div class="file-actions">
+          <button type="button" class="button small" id="pick-output" aria-describedby="output-label"><svg aria-hidden="true"><use href="#i-folder"/></svg>Choose a folder</button>
+        </div>
+      </div>
+      <small class="block" id="output-hint">The results stay in this browser, and you download them as a ZIP file at the end.</small>
+      <div class="field">
+        <label for="csv_separator">CSV separator</label>
+        <select id="csv_separator" aria-describedby="csv-hint"><option value=",">Comma (,)</option><option value=";">Semicolon (;), for Excel in many languages</option></select>
+        <small id="csv-hint">Semicolon files use a decimal comma</small>
+      </div>
+      <label class="switch"><input type="checkbox" role="switch" id="raven_tables"><span>Raven selection tables, one per recording</span></label>
+      <label class="switch"><input type="checkbox" role="switch" id="extract_clips"><span>Audio clips of the detections, to listen to</span></label>
+      <div class="sub" id="clip-options" hidden>
+        <div class="field">
+          <label for="clips_per_band">Clips per confidence band</label>
+          <input type="number" id="clips_per_band" min="1" max="1000" step="1" value="10" aria-describedby="band-hint">
+          <small id="band-hint">Per species, in each band 0.1–0.2, 0.2–0.3…</small>
+        </div>
+        <div class="field">
+          <label for="clip_extra_s">Seconds added on each side</label>
+          <input type="number" id="clip_extra_s" min="0" max="10" step="0.5" value="1">
+        </div>
+        <div class="field">
+          <label for="clip_species">Only these species</label>
+          <input type="text" id="clip_species" aria-describedby="clip-species-hint">
+          <small id="clip-species-hint">Leave empty for all, or list them: <code>Turdus merula, Parus major</code></small>
+        </div>
+      </div>
+    </section>
 
     <details class="advanced">
       <summary>Advanced</summary>
-      <label class="check"><input type="checkbox" id="resume" checked> Continue a stopped run: skip recordings already analysed in the output</label>
-      <label>Compute on
-        <select id="backend"><option value="auto">The graphics card if it passes a check, otherwise the CPU</option><option value="cpu">The CPU only</option></select>
-        <small>Changing this reloads the page</small></label>
+      <label class="switch"><input type="checkbox" role="switch" id="resume" checked><span>Continue a stopped run: skip recordings already analysed in the output</span></label>
+      <div class="field">
+        <label for="backend">Compute on</label>
+        <select id="backend" aria-describedby="backend-hint"><option value="auto">The graphics card if it passes a check, otherwise the CPU</option><option value="cpu">The CPU only</option></select>
+        <small id="backend-hint">Changing this reloads the page</small>
+      </div>
+      <button type="button" class="link danger" id="clear-stored">Delete the results stored in this browser</button>
     </details>
-  </section>
-
-  <section class="card">
-    <h2><span class="num">3</span>Output</h2>
-    <div class="row" id="folder-row" hidden>
-      <button type="button" class="button" id="pick-output">Choose an output folder</button>
-      <span class="file-name" id="output-name"></span>
-    </div>
-    <p class="hint" id="output-hint">Results stay in this browser, and you download them as a ZIP file at the end.</p>
-    <button type="button" class="link" id="clear-stored">Delete the results stored in this browser</button>
-  </section>
-
-  <div class="actions">
-    <button type="button" class="primary" id="run" disabled>Run Perch</button>
-    <button type="button" class="button" id="stop" hidden>Stop</button>
-    <p class="hint" id="run-hint">Choose your recordings first.</p>
-  </div>
-  <p class="alert" id="alert" role="alert" hidden></p>
-
-  <section class="card" id="progress" hidden>
-    <div class="bar"><div id="bar-fill"></div></div>
-    <p id="progress-text"></p>
-  </section>
-
-  <section class="card" id="results" hidden>
-    <h2>Results</h2>
-    <div id="summary"></div>
-    <div class="row" id="downloads"></div>
-    <h3>Most detected species</h3>
-    <div id="chart"></div>
-    <h3>Species</h3>
-    <div class="table-wrap"><table id="species-table"></table></div>
-    <h3>Datasets</h3>
-    <div class="table-wrap"><table id="dataset-table"></table></div>
-    <details id="log-box"><summary>Messages</summary><ul id="log"></ul></details>
-  </section>
-</main>
+  </aside>
+</div>
 
 <footer>
   <p>Perch 2.0 © Google, Apache 2.0 licence: van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
@@ -149,5 +219,16 @@
      Apus is not affiliated with Google.</p>
   <p>The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.</p>
 </footer>
+
+<dialog id="ask" aria-labelledby="ask-text">
+  <form method="dialog">
+    <p id="ask-text"></p>
+    <div class="ask-actions">
+      <button class="button" value="no" id="ask-no">Cancel</button>
+      <button class="primary" value="yes" id="ask-yes">OK</button>
+    </div>
+  </form>
+</dialog>
+<p class="sr-only" id="announce" role="status"></p>
 </body>
 </html>
