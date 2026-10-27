@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Apus, please cite it as below. Please also cite Perch 2.0: van Merriënboer et al. (2025), arXiv:2508.04665."
+title: "Apus: Perch 2.0 in your browser"
+type: software
+authors:
+  - family-names: "López-de Sancha"
+    given-names: "Alejandro"
+version: "0.2.0"
+date-released: "2026-10-27"
+license: MIT
+repository-code: "https://github.com/Calotriton/Apus"
+url: "https://calotriton.github.io/Apus/"
+keywords:
+  - bioacoustics
+  - passive acoustic monitoring
+  - Perch
+  - bird sound classification

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import soundfile as sf
 
-from .audio import RESAMPLER, SAMPLE_RATE, TARGET_PEAK, WINDOW_S, Recording, load_clip, peak_normalize
+from .audio import RESAMPLER, SAMPLE_RATE, TARGET_PEAK, WINDOW_S, Recording, inspect, load_clip, peak_normalize
 from .names import Names, read_species_list
 
 AUDIO_EXTS = {".wav", ".flac", ".ogg", ".mp3", ".m4a", ".aif", ".aiff"}
@@ -35,6 +35,48 @@ def walk_files(root, extensions):
 def safe_name(text):
     """A name that is safe as a file or folder name: 'Turdus merula' -> 'Turdus_merula'."""
     return re.sub(r"[^\w.-]+", "_", str(text)).strip("_") or "unknown"
+
+
+def check_recordings(input_dir, hop_s):
+    """The recordings check before a run, from file headers alone: totals, and the files to look at."""
+    input_dir, hop = Path(input_dir), int(float(hop_s) * SAMPLE_RATE)
+    found = walk_files(input_dir, AUDIO_EXTS)
+    out = {"files": len(found), "seconds": 0.0, "windows": 0, "rates": {}, "unreadable": [], "low_rate": [],
+           "lossy": [], "short": []}
+    for path in found:
+        rel = path.relative_to(input_dir).as_posix()
+        try:
+            if path.stat().st_size == 0:
+                raise RuntimeError("the file is empty")
+            info = inspect(path, hop)
+            if info["windows"] == 0:
+                raise RuntimeError("the file holds no audio")
+        except Exception as exc:                                   # noqa: BLE001 (any reason a file is unreadable)
+            out["unreadable"].append([rel, str(exc).strip().splitlines()[-1] if str(exc).strip() else type(exc).__name__])
+            continue
+        out["seconds"] += info["seconds"]
+        out["windows"] += info["windows"]
+        out["rates"][str(info["sr"])] = out["rates"].get(str(info["sr"]), 0) + 1
+        if info["sr"] < SAMPLE_RATE:
+            out["low_rate"].append([rel, info["sr"]])
+        if info["lossy"]:
+            out["lossy"].append([rel, info["format"]])
+        if info["seconds"] < WINDOW_S:
+            out["short"].append([rel, round(info["seconds"], 2)])
+    return json.dumps(out)
+
+
+def sample_per_band(detections, per_band, seed=0):
+    """The notebook's §7 choice: for each species and 0.1-wide confidence band, up to per_band detections drawn
+    at random (always the same ones). Returns the chosen index labels, in the order drawn. The same rule picks
+    the clips and the detections offered for checking, so they are the same detections."""
+    bands = np.minimum((detections["confidence"] * 10).astype(int), 9)    # 0.0-0.1 -> 0, ..., 0.9-1.0 -> 9
+    rng = random.Random(seed)
+    chosen = []
+    for _, group in detections.groupby([detections["species"], bands]):
+        rows = list(group.index)
+        chosen += rng.sample(rows, per_band) if len(rows) > per_band else rows
+    return chosen
 
 
 def softmax(logits):
@@ -239,7 +281,7 @@ class Run:
         detections = (listed[listed["confidence"] >= s["threshold"]]
                       .sort_values(["file", "start_s", "confidence"], ascending=[True, True, False]))
         removed = predictions[~on_list & (predictions["confidence"] >= s["threshold"])]
-        self.detections = detections
+        self.detections, self.listed, self.predictions = detections, listed, predictions
         self.save_table(detections[COLUMNS], out / "detections.csv")
         if s["species_list"] is not None:
             self.save_table(removed[COLUMNS], out / "removed_by_species_list.csv")
@@ -281,6 +323,11 @@ class Run:
                          "recording(s) had no list.")
         (out / "summary.txt").write_text("\n".join(lines) + "\n\nDetections per species\n"
                                          + species_summary.to_string(index=False), encoding="utf-8")
+        # Provenance a reopened result needs: the threshold and the CSV format of these tables
+        settings_json = out / "run_settings.json"
+        recorded = json.loads(settings_json.read_text()) if settings_json.exists() else {}
+        settings_json.write_text(json.dumps({**recorded, "threshold": s["threshold"],
+                                             "csv_separator": s["csv_separator"]}, indent=2))
         return json.dumps({"lines": lines, "messages": self.messages, "failed": self.failed,
                            "species": json.loads(species_summary.to_json(orient="records")),
                            "datasets": json.loads(dataset_summary.to_json(orient="records"))})
@@ -299,12 +346,7 @@ class Run:
                 if self.names.to_perch(name) is None:
                     self.messages.append(f"⚠ Clip species: '{name}' is not a Perch class")
             pool = pool[pool["species"].isin({self.names.to_perch(name) for name in asked})]
-        pool["band"] = np.minimum((pool["confidence"] * 10).astype(int), 9)   # 0.0-0.1 -> 0, ..., 0.9-1.0 -> 9
-        rng = random.Random(0)
-        chosen = []
-        for _, group in pool.groupby(["species", "band"]):
-            rows = list(group.index)
-            chosen += rng.sample(rows, s["clips_per_band"]) if len(rows) > s["clips_per_band"] else rows
+        chosen = sample_per_band(pool, s["clips_per_band"])
 
         index = []
         for i in chosen:

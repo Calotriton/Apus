@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- GitHub Pages cannot send the headers that multi-threaded WebAssembly needs; this service worker adds them -->
 <script src="coi-serviceworker.min.js"></script>
-<!-- The saved day/night choice, applied before the page is drawn so it does not flash -->
+<!-- The saved day/night choice and language, applied before the page is drawn so they do not flash -->
 <script>try { const t = localStorage.getItem('apus.theme'); if (t) document.documentElement.dataset.theme = t; } catch { }</script>
 <link rel="stylesheet" href="style.css">
 <script type="module" src="app.js"></script>
@@ -23,10 +23,13 @@
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h3.6l2 2.2h7.4a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M13.5 3.5V9H19"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 5.5v13M15.5 5.5v13"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4.5v10.5M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></symbol>
   <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h1.5M7 9v6M10.5 5.5v13M14 8.5v7M17.5 6.5v11M21 12h-.5"/></symbol>
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
 </svg>
 
 <header class="top">
@@ -34,7 +37,7 @@
     <img class="logo" src="icons/logo.svg" width="40" height="40" alt="">
     <div>
       <h1>Apus</h1>
-      <p class="tagline">Species in your recordings, with Google's Perch 2.0</p>
+      <p class="tagline" data-i18n>Species in your recordings, with Google's Perch 2.0</p>
     </div>
   </div>
   <div class="top-right">
@@ -42,6 +45,7 @@
       <span class="dot" aria-hidden="true"></span><span id="model-text">Loading</span>
       <span class="pill-bar" aria-hidden="true"><span id="model-bar"></span></span>
     </div>
+    <button type="button" class="icon-button lang-button" id="lang" lang="es" aria-label="Español" title="Español">ES</button>
     <button type="button" class="icon-button" id="theme" aria-label="Night mode" title="Night mode">
       <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
       <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
@@ -55,21 +59,22 @@
       <div class="drop">
         <span class="drop-icon" aria-hidden="true"><svg><use href="#i-wave"/></svg></span>
         <div class="drop-text">
-          <h2 id="recordings-title">Recordings</h2>
-          <p id="recordings-summary">Drop a folder or audio files here, or choose them. Each sub-folder is one dataset, such as a site or a recorder.</p>
+          <h2 id="recordings-title" data-i18n>Recordings</h2>
+          <p id="recordings-summary"></p>
         </div>
         <div class="drop-actions">
-          <button type="button" class="button" id="pick-folder"><svg aria-hidden="true"><use href="#i-folder"/></svg>Choose a folder</button>
-          <button type="button" class="button" id="pick-files"><svg aria-hidden="true"><use href="#i-file"/></svg>Choose files</button>
+          <button type="button" class="button" id="pick-folder"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
+          <button type="button" class="button" id="pick-files"><svg aria-hidden="true"><use href="#i-file"/></svg><span data-i18n>Choose files</span></button>
         </div>
-        <p class="formats">WAV, FLAC and OGG files work.</p>
+        <p class="formats" data-i18n>WAV, FLAC and OGG files work.</p>
         <input type="file" id="folder-input" webkitdirectory hidden>
         <input type="file" id="files-input" multiple accept=".wav,.flac,.ogg,.mp3,.m4a,.aif,.aiff" hidden>
       </div>
+      <div class="check-box" id="check" hidden aria-live="polite"></div>
       <div class="run-bar">
-        <button type="button" class="primary" id="run" disabled><svg aria-hidden="true"><use href="#i-play"/></svg>Run Perch</button>
-        <p class="hint" id="run-hint">Choose your recordings first.</p>
-        <p class="settings-line" id="settings-line" hidden><span id="settings-text"></span> <a href="#settings" class="to-settings">Change</a></p>
+        <button type="button" class="primary" id="run" disabled><svg aria-hidden="true"><use href="#i-play"/></svg><span data-i18n>Run Perch</span></button>
+        <p class="hint" id="run-hint"></p>
+        <p class="settings-line" id="settings-line" hidden><span id="settings-text"></span> <a href="#settings" class="to-settings" data-i18n>Change</a></p>
       </div>
     </section>
 
@@ -77,9 +82,9 @@
 
     <section class="card" id="progress" hidden aria-labelledby="progress-title">
       <div class="progress-head">
-        <h2 id="progress-title">Analysing</h2>
+        <h2 id="progress-title" data-i18n>Analysing</h2>
         <span class="pct" id="progress-pct">0%</span>
-        <button type="button" class="button" id="stop"><svg aria-hidden="true"><use href="#i-stop"/></svg>Stop</button>
+        <button type="button" class="button" id="stop"><svg aria-hidden="true"><use href="#i-stop"/></svg><span data-i18n>Stop</span></button>
       </div>
       <div class="bar" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar"><div id="bar-fill"></div></div>
       <p id="progress-text"></p>
@@ -88,144 +93,291 @@
     <section class="card placeholder" id="results-empty" aria-labelledby="results-empty-title">
       <div class="ghost" aria-hidden="true"><span style="--f: 0.92"></span><span style="--f: 0.7"></span><span style="--f: 0.46"></span><span style="--f: 0.3"></span></div>
       <div>
-        <h2 id="results-empty-title">Results appear here</h2>
-        <p class="hint">After a run: the counts, the most detected species, and tables you can sort. The files (detections, summaries, Raven tables, clips) go to your folder or into a ZIP file.</p>
+        <h2 id="results-empty-title" data-i18n>Results appear here</h2>
+        <p class="hint" data-i18n>After a run: the counts, the most detected species, and tables you can sort. The files (detections, summaries, Raven tables, clips) go to your folder or into a ZIP file.</p>
+        <button type="button" class="button small reopen" id="reopen" hidden></button>
       </div>
     </section>
 
     <section class="card results" id="results" hidden aria-labelledby="results-title" tabindex="-1">
       <div class="results-head">
-        <h2 id="results-title">Results</h2>
+        <div>
+          <h2 id="results-title" data-i18n>Results</h2>
+          <p class="hint" id="results-when" hidden></p>
+        </div>
         <div id="downloads"></div>
       </div>
-      <div class="tiles" id="tiles"></div>
-      <div class="notice" id="failed" hidden></div>
-      <div id="summary"></div>
-      <h3>Most detected species</h3>
-      <div id="chart"></div>
-      <h3>Species</h3>
-      <div class="table-wrap"><table id="species-table"></table></div>
-      <h3>Datasets</h3>
-      <div class="table-wrap"><table id="dataset-table"></table></div>
-      <details id="log-box"><summary>Messages</summary><ul id="log"></ul></details>
+
+      <div class="tabs" role="tablist" aria-labelledby="results-title">
+        <button type="button" role="tab" id="tab-summary" aria-controls="panel-summary" aria-selected="true" data-i18n>Summary</button>
+        <button type="button" role="tab" id="tab-check" aria-controls="panel-check" aria-selected="false" tabindex="-1" data-i18n>Check detections</button>
+        <button type="button" role="tab" id="tab-thresholds" aria-controls="panel-thresholds" aria-selected="false" tabindex="-1" data-i18n>Thresholds</button>
+        <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" tabindex="-1" data-i18n>Compare</button>
+        <button type="button" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false" tabindex="-1" data-i18n>Activity</button>
+        <button type="button" role="tab" id="tab-methods" aria-controls="panel-methods" aria-selected="false" tabindex="-1" data-i18n>Methods</button>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
+        <div class="tiles" id="tiles"></div>
+        <div class="notice" id="failed" hidden></div>
+        <div id="summary"></div>
+        <h3 data-i18n>Most detected species</h3>
+        <div id="chart"></div>
+        <h3 data-i18n>Species</h3>
+        <div class="table-wrap"><table id="species-table"></table></div>
+        <h3 data-i18n>Datasets</h3>
+        <div class="table-wrap"><table id="dataset-table"></table></div>
+        <details id="log-box"><summary data-i18n>Messages</summary><ul id="log"></ul></details>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-check" aria-labelledby="tab-check" hidden>
+        <p class="lede" data-i18n>Listen to detections and mark each one. For every species, Apus offers a random sample in each confidence band, so your checks cover weak and strong scores alike. They tell you how often a detection is right at each confidence, and the Thresholds tab uses them.</p>
+        <div class="check-layout">
+          <div class="species-picker">
+            <label class="sr-only" for="species-search" data-i18n>Find a species</label>
+            <input type="search" id="species-search" data-i18n-attr="placeholder" placeholder="Find a species">
+            <ul id="species-list"></ul>
+          </div>
+          <div class="species-detail" id="species-detail">
+            <p class="empty-note" data-i18n>Pick a species to check its detections.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-thresholds" aria-labelledby="tab-thresholds" hidden>
+        <p class="lede" data-i18n>For each species, Apus fits how the chance that a detection is correct grows with its confidence, from the detections you checked, and gives the confidence at which that chance reaches your target. It is the notebook's §9, after Wood and Kahl (2024).</p>
+        <div class="form-row">
+          <div class="field">
+            <label for="cal-target" data-i18n>Target chance of being correct</label>
+            <input type="number" id="cal-target" min="0.5" max="0.99" step="0.01" value="0.95">
+          </div>
+          <div class="field">
+            <label for="cal-min" data-i18n>Fewest checked detections</label>
+            <input type="number" id="cal-min" min="2" max="1000" step="1" value="8">
+          </div>
+          <button type="button" class="primary" id="cal-run"><span data-i18n>Fit thresholds</span></button>
+        </div>
+        <p class="hint" data-i18n>Detections marked unsure are left out. Clips you sorted into correct and incorrect folders, as the notebook asks, count too. A threshold holds for recordings like the ones you checked: the same sites, season and recorders.</p>
+        <p class="hint tool-status" id="cal-status" aria-live="polite"></p>
+        <div id="cal-out"></div>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" hidden>
+        <p class="lede" data-i18n>Scores Perch against your own annotations, and optionally another model such as BirdNET against the same annotations. It is the notebook's §8, with the two levels of Funosas et al. (2026): single calls, and species per dataset.</p>
+        <div class="file-field">
+          <span class="label" id="ref-label" data-i18n>Annotations</span>
+          <span class="file-name" id="ref-name" data-i18n>No folder chosen</span>
+          <div class="file-actions"><button type="button" class="button small" id="pick-ref" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button></div>
+          <small data-i18n-html>One file per recording, whose name starts with the recording's name: Audacity labels, Raven selection tables, or any table with start, end and species columns.</small>
+        </div>
+        <div class="file-field">
+          <span class="label" id="other-label" data-i18n>Another model (optional)</span>
+          <span class="file-name" id="other-name" data-i18n>None</span>
+          <div class="file-actions">
+            <button type="button" class="button small" id="pick-other" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
+            <button type="button" class="link" id="clear-other" hidden data-i18n>Remove</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label for="other-model-name" data-i18n>Its name</label>
+            <input type="text" id="other-model-name" value="BirdNET">
+          </div>
+        </div>
+        <label class="switch"><input type="checkbox" role="switch" id="count-unmatched" checked><span data-i18n>Count annotations of species Perch has no class for as missed</span></label>
+        <input type="file" id="ref-input" webkitdirectory hidden>
+        <input type="file" id="other-input" webkitdirectory hidden>
+        <div class="form-row"><button type="button" class="primary" id="cmp-run" disabled><span data-i18n>Compare</span></button></div>
+        <p class="hint tool-status" id="cmp-status" aria-live="polite"></p>
+        <div id="cmp-out"></div>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity" hidden>
+        <p class="lede" data-i18n>Reads the date and time from each recording's file name, such as 20211027_072000, and shows when each species was detected. Activity is given per hour of recording, so hours with more recording do not look busier.</p>
+        <div class="form-row">
+          <div class="field">
+            <label for="names-tz" data-i18n>Times in the file names are</label>
+            <select id="names-tz"><option value="utc" data-i18n>UTC (AudioMoth's default)</option><option value="local" data-i18n>Local time</option></select>
+          </div>
+          <div class="field">
+            <label for="utc-offset" data-i18n>Local time is UTC plus</label>
+            <select id="utc-offset"></select>
+          </div>
+          <button type="button" class="primary" id="act-run"><span data-i18n>Read times</span></button>
+        </div>
+        <p class="hint" data-i18n>Use the offset your recorders were set to, or your local time at the date of the recordings. Apus uses one fixed offset for the whole run, so summer and winter time are not switched.</p>
+        <p class="hint tool-status" id="act-status" aria-live="polite"></p>
+        <div id="act-out"></div>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-methods" aria-labelledby="tab-methods" hidden>
+        <p class="lede" data-i18n>A paragraph for the methods section of a report or paper, written from this run's settings. Check it, and add what Apus cannot know: the recorders, their settings and the sampling design.</p>
+        <div class="methods-box">
+          <p id="methods-text"></p>
+          <button type="button" class="button small" id="copy-methods"><svg aria-hidden="true"><use href="#i-copy"/></svg><span data-i18n>Copy</span></button>
+        </div>
+        <h3 data-i18n>To cite</h3>
+        <ul class="refs" id="refs"></ul>
+      </div>
     </section>
   </main>
 
   <aside class="panel" id="settings" aria-labelledby="settings-title">
     <div class="panel-head">
-      <h2 id="settings-title">Settings</h2>
-      <span class="saved">Saved in this browser</span>
+      <h2 id="settings-title" data-i18n>Settings</h2>
+      <span class="saved" data-i18n>Saved in this browser</span>
     </div>
 
     <section class="group">
-      <h3>Detection</h3>
+      <h3 data-i18n>Detection</h3>
       <div class="field">
-        <label for="threshold">Threshold</label>
+        <div class="label-row"><label for="threshold" data-i18n>Threshold</label><button type="button" class="help" aria-expanded="false" aria-controls="help-threshold" data-i18n-attr="aria-label" aria-label="About the threshold">?</button></div>
+        <p class="help-text" id="help-threshold" hidden data-i18n>Perch gives every species a confidence score from 0 to 1 in each 5 s window. A detection is a score at or above this threshold. A lower threshold finds more calls, but also more false detections. A score is not a probability, and the same score means different things for different species. To set a threshold per species, check some detections and use the Thresholds tab.</p>
         <div class="slider">
-          <input type="range" id="threshold-range" min="0.01" max="0.99" step="0.01" value="0.10" aria-label="Threshold" aria-describedby="threshold-hint">
+          <input type="range" id="threshold-range" min="0.01" max="0.99" step="0.01" value="0.10" data-i18n-attr="aria-label" aria-label="Threshold" aria-describedby="threshold-hint">
           <input type="number" id="threshold" min="0.01" max="0.99" step="0.01" value="0.10" aria-describedby="threshold-hint">
         </div>
-        <small id="threshold-hint">The lowest confidence score (0 to 1) that counts as a detection</small>
+        <small id="threshold-hint" data-i18n>The lowest confidence score (0 to 1) that counts as a detection</small>
       </div>
       <div class="field">
-        <label for="hop_s">Window hop</label>
-        <select id="hop_s" aria-describedby="hop-hint"><option value="5">5 s: windows back to back</option><option value="2.5">2.5 s: windows overlap by half</option></select>
-        <small id="hop-hint">Perch listens to 5 s windows</small>
+        <div class="label-row"><label for="hop_s" data-i18n>Window hop</label><button type="button" class="help" aria-expanded="false" aria-controls="help-hop" data-i18n-attr="aria-label" aria-label="About the window hop">?</button></div>
+        <p class="help-text" id="help-hop" hidden data-i18n>Perch listens to 5 s windows. With a 5 s hop the windows follow each other. With 2.5 s they overlap by half: a call cut by a window's edge is heard whole in the next one, but the run takes twice as long, and a call in two windows is detected twice.</p>
+        <select id="hop_s" aria-describedby="hop-hint"><option value="5" data-i18n>5 s: windows back to back</option><option value="2.5" data-i18n>2.5 s: windows overlap by half</option></select>
+        <small id="hop-hint" data-i18n>Perch listens to 5 s windows</small>
       </div>
       <div class="field">
-        <label for="top_k">Species kept per window</label>
+        <div class="label-row"><label for="top_k" data-i18n>Species kept per window</label><button type="button" class="help" aria-expanded="false" aria-controls="help-topk" data-i18n-attr="aria-label" aria-label="About species kept per window">?</button></div>
+        <p class="help-text" id="help-topk" hidden data-i18n>How many of the best-scoring species are kept for each window, before the threshold. It must be at least 1 divided by the threshold (10 for 0.10), or a species above the threshold could be cut. Apus raises it when needed.</p>
         <input type="number" id="top_k" min="1" max="200" step="1" value="10" aria-describedby="top-k-hint">
-        <small id="top-k-hint">The best-scoring species of each window</small>
+        <small id="top-k-hint"></small>
       </div>
     </section>
 
     <section class="group">
-      <h3>Species names <span class="tag">Optional</span></h3>
-      <div class="file-field">
-        <span class="label" id="list-label">Species list</span>
-        <span class="file-name" id="list-name">None: every Perch class is kept</span>
+      <h3><span data-i18n>Species names</span> <span class="tag" data-i18n>Optional</span></h3>
+      <div class="file-field stacked">
+        <span class="label label-row" id="list-label"><span data-i18n>Species list</span><button type="button" class="help" aria-expanded="false" aria-controls="help-list" data-i18n-attr="aria-label" aria-label="About species lists">?</button></span>
+        <span class="file-name" id="list-name"></span>
         <div class="file-actions">
-          <button type="button" class="button small" id="pick-list-file" aria-describedby="list-label">File</button>
-          <button type="button" class="button small" id="pick-list-folder" aria-describedby="list-label">Folder of lists</button>
-          <button type="button" class="link" id="clear-list" hidden>Remove</button>
+          <button type="button" class="button small" id="pick-list-file" aria-describedby="list-label" data-i18n>File</button>
+          <button type="button" class="button small" id="pick-list-folder" aria-describedby="list-label" data-i18n>Folder of lists</button>
+          <button type="button" class="button small" id="build-list" aria-describedby="list-label"><svg aria-hidden="true"><use href="#i-list"/></svg><span data-i18n>Build</span></button>
+          <button type="button" class="link" id="clear-list" hidden data-i18n>Remove</button>
         </div>
         <input type="file" id="list-file-input" accept=".txt,.csv" hidden>
         <input type="file" id="list-folder-input" webkitdirectory hidden>
-        <small>One species per line. A file named like a dataset, such as <code>SiteA.txt</code>, applies to that dataset. A file whose name starts with a recording's name applies to that recording.</small>
+        <p class="help-text" id="help-list" hidden data-i18n>Keeps only the species you expect, for example those known in the area. Detections of other species go to removed_by_species_list.csv. Build a list here, or choose your own files.</p>
+        <small data-i18n-html>One species per line. A file named like a dataset, such as <code>SiteA.txt</code>, applies to that dataset. A file whose name starts with a recording's name applies to that recording.</small>
       </div>
       <div class="file-field">
-        <span class="label" id="syn-label">Synonyms</span>
-        <span class="file-name" id="syn-name">None</span>
+        <span class="label label-row" id="syn-label"><span data-i18n>Synonyms</span><button type="button" class="help" aria-expanded="false" aria-controls="help-syn" data-i18n-attr="aria-label" aria-label="About synonyms">?</button></span>
+        <span class="file-name" id="syn-name" data-i18n>None</span>
         <div class="file-actions">
-          <button type="button" class="button small" id="pick-syn" aria-describedby="syn-label">File</button>
-          <button type="button" class="link" id="clear-syn" hidden>Remove</button>
+          <button type="button" class="button small" id="pick-syn" aria-describedby="syn-label" data-i18n>File</button>
+          <button type="button" class="link" id="clear-syn" hidden data-i18n>Remove</button>
         </div>
         <input type="file" id="syn-input" accept=".csv,.txt" hidden>
-        <small>Two columns, your name then Perch's, for example <code>Corvus monedula,Coloeus monedula</code></small>
+        <p class="help-text" id="help-syn" hidden data-i18n>If your lists or annotations use names that Perch spells differently, such as an older taxonomy, this table maps each of your names to Perch's. Apus already knows the eBird 2021 names that changed.</p>
+        <small data-i18n-html>Two columns, your name then Perch's, for example <code>Corvus monedula,Coloeus monedula</code></small>
       </div>
     </section>
 
     <section class="group">
-      <h3>Output</h3>
+      <h3 data-i18n>Output</h3>
       <div class="file-field" id="folder-row" hidden>
-        <span class="label" id="output-label">Save to</span>
-        <span class="file-name" id="output-name">No folder chosen</span>
+        <span class="label label-row" id="output-label"><span data-i18n>Save to</span><button type="button" class="help" aria-expanded="false" aria-controls="help-output" data-i18n-attr="aria-label" aria-label="About the output folder">?</button></span>
+        <span class="file-name" id="output-name" data-i18n>No folder chosen</span>
         <div class="file-actions">
-          <button type="button" class="button small" id="pick-output" aria-describedby="output-label"><svg aria-hidden="true"><use href="#i-folder"/></svg>Choose a folder</button>
+          <button type="button" class="button small" id="pick-output" aria-describedby="output-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
+          <button type="button" class="link" id="clear-output" hidden data-i18n>Remove</button>
         </div>
+        <p class="help-text" id="help-output" hidden data-i18n>Chrome and Edge can write the results straight into a folder on your computer as the run goes, and Apus reopens them next time. Without a folder, the results stay in this browser until you download them as a ZIP file.</p>
       </div>
-      <small class="block" id="output-hint">The results stay in this browser, and you download them as a ZIP file at the end.</small>
+      <small class="block" id="output-hint"></small>
       <div class="field">
-        <label for="csv_separator">CSV separator</label>
-        <select id="csv_separator" aria-describedby="csv-hint"><option value=",">Comma (,)</option><option value=";">Semicolon (;), for Excel in many languages</option></select>
-        <small id="csv-hint">Semicolon files use a decimal comma</small>
+        <div class="label-row"><label for="csv_separator" data-i18n>CSV separator</label><button type="button" class="help" aria-expanded="false" aria-controls="help-csv" data-i18n-attr="aria-label" aria-label="About the CSV separator">?</button></div>
+        <p class="help-text" id="help-csv" hidden data-i18n>Excel in Spanish, French, German and many other languages expects semicolons and decimal commas. Choose the semicolon if Excel shows each file in a single column.</p>
+        <select id="csv_separator" aria-describedby="csv-hint"><option value="," data-i18n>Comma (,)</option><option value=";" data-i18n>Semicolon (;), for Excel in many languages</option></select>
+        <small id="csv-hint" data-i18n>Semicolon files use a decimal comma</small>
       </div>
-      <label class="switch"><input type="checkbox" role="switch" id="raven_tables"><span>Raven selection tables, one per recording</span></label>
-      <label class="switch"><input type="checkbox" role="switch" id="extract_clips"><span>Audio clips of the detections, to listen to</span></label>
+      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="raven_tables"><span data-i18n>Raven selection tables, one per recording</span></label><button type="button" class="help" aria-expanded="false" aria-controls="help-raven" data-i18n-attr="aria-label" aria-label="About Raven tables">?</button></div>
+      <p class="help-text" id="help-raven" hidden data-i18n>One selection table per recording, to see the detections over the spectrogram in Raven Pro or Raven Lite.</p>
+      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="extract_clips"><span data-i18n>Audio clips of the detections, to listen to</span></label><button type="button" class="help" aria-expanded="false" aria-controls="help-clips" data-i18n-attr="aria-label" aria-label="About audio clips">?</button></div>
+      <p class="help-text" id="help-clips" hidden data-i18n>Cuts the audio of a sample of detections, per species and confidence band, to listen to outside Apus. The Check detections tab offers the same sample.</p>
       <div class="sub" id="clip-options" hidden>
         <div class="field">
-          <label for="clips_per_band">Clips per confidence band</label>
+          <label for="clips_per_band" data-i18n>Clips per confidence band</label>
           <input type="number" id="clips_per_band" min="1" max="1000" step="1" value="10" aria-describedby="band-hint">
-          <small id="band-hint">Per species, in each band 0.1–0.2, 0.2–0.3…</small>
+          <small id="band-hint" data-i18n>Per species, in each band 0.1–0.2, 0.2–0.3…</small>
         </div>
         <div class="field">
-          <label for="clip_extra_s">Seconds added on each side</label>
+          <label for="clip_extra_s" data-i18n>Seconds added on each side</label>
           <input type="number" id="clip_extra_s" min="0" max="10" step="0.5" value="1">
         </div>
         <div class="field">
-          <label for="clip_species">Only these species</label>
+          <label for="clip_species" data-i18n>Only these species</label>
           <input type="text" id="clip_species" aria-describedby="clip-species-hint">
-          <small id="clip-species-hint">Leave empty for all, or list them: <code>Turdus merula, Parus major</code></small>
+          <small id="clip-species-hint" data-i18n-html>Leave empty for all, or list them: <code>Turdus merula, Parus major</code></small>
         </div>
       </div>
+      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="notify"><span data-i18n>Tell me when a run ends</span></label></div>
+      <small class="block" id="notify-hint" hidden></small>
     </section>
 
     <details class="advanced">
-      <summary>Advanced</summary>
-      <label class="switch"><input type="checkbox" role="switch" id="resume" checked><span>Continue a stopped run: skip recordings already analysed in the output</span></label>
+      <summary data-i18n>Advanced</summary>
+      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="resume" checked><span data-i18n>Continue a stopped run: skip recordings already analysed in the output</span></label></div>
       <div class="field">
-        <label for="backend">Compute on</label>
-        <select id="backend" aria-describedby="backend-hint"><option value="auto">The graphics card if it passes a check, otherwise the CPU</option><option value="cpu">The CPU only</option></select>
-        <small id="backend-hint">Changing this reloads the page</small>
+        <div class="label-row"><label for="backend" data-i18n>Compute on</label><button type="button" class="help" aria-expanded="false" aria-controls="help-backend" data-i18n-attr="aria-label" aria-label="About the compute device">?</button></div>
+        <p class="help-text" id="help-backend" hidden data-i18n>The graphics card is several times faster. Apus uses it only if, in a check at start-up, it gives the same results as Perch's own model.</p>
+        <select id="backend" aria-describedby="backend-hint"><option value="auto" data-i18n>The graphics card if it passes a check, otherwise the CPU</option><option value="cpu" data-i18n>The CPU only</option></select>
+        <small id="backend-hint" data-i18n>Changing this reloads the page</small>
       </div>
-      <button type="button" class="link danger" id="clear-stored">Delete the results stored in this browser</button>
+      <button type="button" class="link danger" id="clear-stored" data-i18n>Delete the results stored in this browser</button>
     </details>
   </aside>
 </div>
 
 <footer>
-  <p>Perch 2.0 © Google, Apache 2.0 licence: van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
-     ONNX conversion by Justin Chu. Runs on <a href="https://onnxruntime.ai">ONNX Runtime Web</a> and <a href="https://pyodide.org">Pyodide</a>.
-     Apus is not affiliated with Google.</p>
-  <p>The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.</p>
+  <p><span data-i18n>Perch 2.0 © Google, Apache 2.0 licence:</span> van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
+     <span data-i18n>ONNX conversion by Justin Chu.</span> <span data-i18n>Runs on</span> <a href="https://onnxruntime.ai">ONNX Runtime Web</a> <span data-i18n>and</span> <a href="https://pyodide.org">Pyodide</a>.
+     <span data-i18n>Apus is not affiliated with Google.</span></p>
+  <p data-i18n-html>The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.</p>
 </footer>
 
 <dialog id="ask" aria-labelledby="ask-text">
   <form method="dialog">
     <p id="ask-text"></p>
     <div class="ask-actions">
-      <button class="button" value="no" id="ask-no">Cancel</button>
+      <button class="button" value="no" id="ask-no" data-i18n>Cancel</button>
       <button class="primary" value="yes" id="ask-yes">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="builder" class="builder" aria-labelledby="builder-title">
+  <form method="dialog" class="builder-form">
+    <div class="builder-head">
+      <h2 id="builder-title" data-i18n>Build a species list</h2>
+      <p class="hint" data-i18n>Search Perch's 14,795 classes by scientific name and add the species you expect. The list applies to every dataset.</p>
+    </div>
+    <label class="sr-only" for="builder-search" data-i18n>Search Perch's classes</label>
+    <input type="search" id="builder-search" data-i18n-attr="placeholder" placeholder="Search, e.g. Turdus" autocomplete="off">
+    <div class="builder-cols">
+      <div>
+        <h3 data-i18n>Matches</h3>
+        <ul class="builder-results" id="builder-results"></ul>
+      </div>
+      <div>
+        <h3><span data-i18n>Your list</span> <span class="count" id="builder-count"></span></h3>
+        <ul class="builder-chosen" id="builder-chosen"></ul>
+      </div>
+    </div>
+    <div class="ask-actions">
+      <button type="button" class="button" id="builder-download"><svg aria-hidden="true"><use href="#i-download"/></svg><span data-i18n>Download as text</span></button>
+      <span class="spacer"></span>
+      <button class="button" value="no" data-i18n>Cancel</button>
+      <button class="primary" value="yes" id="builder-use" data-i18n>Use this list</button>
     </div>
   </form>
 </dialog>

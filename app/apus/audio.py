@@ -44,6 +44,27 @@ def resample(y, sr):
     return np.asarray(y_hat, dtype=y.dtype)
 
 
+def resampled_length(frames, sr):
+    """Length at 32 kHz after librosa's fix_length: ceil(frames * ratio), with the ratio as a float, as librosa does."""
+    return frames if sr == SAMPLE_RATE else int(np.ceil(frames * (float(SAMPLE_RATE) / sr)))
+
+
+def window_count(n, hop):
+    """librosa.util.frame's count for n samples at 32 kHz (a file under 5 s gives one centred window)."""
+    return 1 if n < WINDOW else 1 + (n - WINDOW) // hop
+
+
+LOSSY = {"VORBIS", "OPUS", "MPEG_LAYER_I", "MPEG_LAYER_II", "MPEG_LAYER_III"}
+
+
+def inspect(path, hop):
+    """What a file holds, from its header alone (nothing is decoded)."""
+    with sf.SoundFile(str(path)) as f:
+        sr, frames, channels, fmt, subtype = f.samplerate, f.frames, f.channels, f.format, f.subtype
+    return {"seconds": frames / sr if sr else 0.0, "sr": sr, "channels": channels, "format": fmt,
+            "lossy": subtype in LOSSY, "windows": window_count(resampled_length(frames, sr), hop) if frames else 0}
+
+
 class Recording:
     """One audio file, served as 32 kHz mono samples, any slice at a time."""
 
@@ -55,8 +76,7 @@ class Recording:
             raise RuntimeError("the file holds no audio")
         g = math.gcd(self.sr, SAMPLE_RATE)
         self.up, self.down = SAMPLE_RATE // g, self.sr // g
-        # Length after librosa's fix_length: ceil(frames * ratio), with the ratio as a float, as librosa does
-        self.n = self.frames if self.sr == SAMPLE_RATE else int(np.ceil(self.frames * (float(SAMPLE_RATE) / self.sr)))
+        self.n = resampled_length(self.frames, self.sr)
 
     def _read(self, k0, k1):
         """Mono float32 input samples [k0, k1), as librosa.load reads them."""
@@ -89,7 +109,7 @@ class Recording:
 
     def window_count(self, hop):
         """librosa.util.frame's count (a file under 5 s gives one centred window)."""
-        return 1 if self.n < WINDOW else 1 + (self.n - WINDOW) // hop
+        return window_count(self.n, hop)
 
     def windows(self, w0, w1, hop):
         """Windows [w0, w1) of 5 s every `hop` samples, as float32 [w1 - w0, WINDOW]."""
@@ -107,6 +127,16 @@ def peak_normalize(frames, target_peak=TARGET_PEAK):
     peak = np.max(np.abs(frames), axis=-1, keepdims=True)
     frames = np.divide(frames, peak, out=np.zeros_like(frames), where=peak > 0.0)
     return frames * target_peak
+
+
+def spectrogram(y, db_range=80.0):
+    """For the page: magnitude in dB over 0-16 kHz (Hann window of 512 samples, hop of 256), scaled to 0-255
+    over the top db_range dB. Returns (uint8 bytes with the lowest frequency first, width, height)."""
+    _, _, s = scipy.signal.spectrogram(np.asarray(y, dtype=np.float32), fs=SAMPLE_RATE, window="hann",
+                                       nperseg=512, noverlap=256, mode="magnitude")
+    db = 20 * np.log10(s[:256] + 1e-10)
+    scaled = np.clip((db - (db.max() - db_range)) / db_range, 0, 1) * 255
+    return scaled.astype(np.uint8).tobytes(), scaled.shape[1], scaled.shape[0]
 
 
 def load_clip(path, offset, duration):
