@@ -98,6 +98,7 @@ function relabel() {
   renderCheck();
   listName();
   $('syn-name').textContent = state.synonyms ? state.synonyms.file.name : t('None');
+  compareNames();
   outputLabels();
   updateRun();
   utcOffsets();
@@ -224,8 +225,6 @@ pick('pick-files', 'files-input');
 pick('pick-list-file', 'list-file-input');
 pick('pick-list-folder', 'list-folder-input');
 pick('pick-syn', 'syn-input');
-pick('pick-ref', 'ref-input');
-pick('pick-other', 'other-input');
 
 const topFolder = (f) => f.webkitRelativePath.split('/')[0];
 const sizeText = (bytes) => (bytes < 1e8 ? `${num(Math.max(1, Math.round(bytes / 1e6)))} MB` : `${num(bytes / 1e9, 1)} GB`);
@@ -275,21 +274,25 @@ addEventListener('dragover', (e) => {
   if (!state.running) document.body.classList.add('dragging');
 });
 addEventListener('dragleave', (e) => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
+// What was dropped, as {items, folder}; throws with the message to show (`mixed`: for a folder dropped with more)
+async function droppedItems(e, mixed) {
+  const entries = [...e.dataTransfer.items].map((item) => item.webkitGetAsEntry?.()).filter(Boolean);  // read before any await
+  const folders = entries.filter((entry) => entry.isDirectory);
+  if (folders.length && entries.length > 1) throw new Error(mixed);
+  if (!entries.length) return { items: [...e.dataTransfer.files].map((f) => ({ file: f, rel: f.name })), folder: false };
+  const items = [];
+  try { for (const entry of entries) await walk(entry, items); }
+  catch { throw new Error('That folder could not be read. Choose it with "Choose a folder" instead.'); }
+  return { items, folder: folders.length === 1 };
+}
 addEventListener('drop', async (e) => {
   e.preventDefault();
   document.body.classList.remove('dragging');
   if (state.running) return;
-  const entries = [...e.dataTransfer.items].map((item) => item.webkitGetAsEntry?.()).filter(Boolean);  // read before any await
-  const folders = entries.filter((entry) => entry.isDirectory);
-  if (folders.length && entries.length > 1) { alertBox(t('Drop one folder, or one or more audio files.')); return; }
-  if (!entries.length) {
-    setRecordings([...e.dataTransfer.files].map((f) => ({ file: f, rel: f.name })), false);
-    return;
-  }
-  const items = [];
-  try { for (const entry of entries) await walk(entry, items); }
-  catch { alertBox(t('That folder could not be read. Choose it with "Choose a folder" instead.')); return; }
-  setRecordings(items, folders.length === 1);
+  try {
+    const { items, folder } = await droppedItems(e, 'Drop one folder, or one or more audio files.');
+    setRecordings(items, folder);
+  } catch (err) { alertBox(t(err.message)); }
 });
 
 // ── The recordings check: from the files' headers, with an estimated run time ────────────────────────────
@@ -983,32 +986,61 @@ function renderCal() {
 }
 
 // ── Compare (§8) ──────────────────────────────────────────────────────────────────────────────────────────
-function folderPick(input, key, nameEl, clearEl) {
-  $(input).addEventListener('change', (e) => {
-    const files = [...e.target.files];
-    if (!files.length) return;
-    state[key] = { files, top: topFolder(files[0]) };
-    $(nameEl).textContent = `${state[key].top} (${tn(files.length, '{n} file', '{n} files')})`;
-    $(nameEl).parentElement.classList.add('set');
-    if (clearEl) $(clearEl).hidden = false;
-    if (key === 'other') $('other-name-row').hidden = false;
-    updateRun();
+// The annotations ('ref') and another model's results ('other'): one or more files, or a folder, chosen or dropped.
+// `items` are {file, rel} as for the recordings. `name` is the folder, the one file, or "3 files" (a folder of its own).
+const TABLE = /\.(txt|csv)$/i;
+function setCompareFiles(key, items, folder) {
+  const tables = items.filter(({ file }) => TABLE.test(file.name));
+  if (!tables.length) { $('cmp-status').textContent = t('There are no text or CSV files there.'); return; }
+  $('cmp-status').textContent = '';
+  const name = folder ? items[0].rel.split('/')[0]
+    : tables.length === 1 ? tables[0].file.name : tn(tables.length, '{n} file', '{n} files');
+  state[key] = { items: tables, folder, name };
+  compareNames();
+  updateRun();
+}
+function compareNames() {
+  for (const key of ['ref', 'other']) {
+    const s = state[key];
+    $(`${key}-name`).textContent = !s ? t('Drop files or a folder here, or choose them.')
+      : s.folder ? `${s.name} (${tn(s.items.length, '{n} file', '{n} files')})` : s.name;
+    $(`${key}-field`).classList.toggle('set', Boolean(s));
+  }
+  $('clear-other').hidden = !state.other;
+  $('other-name-row').hidden = !state.other;
+}
+for (const key of ['ref', 'other']) {
+  pick(`pick-${key}-files`, `${key}-files-input`);
+  pick(`pick-${key}-folder`, `${key}-folder-input`);
+  $(`${key}-files-input`).addEventListener('change', (e) =>
+    setCompareFiles(key, [...e.target.files].map((f) => ({ file: f, rel: f.name })), false));
+  $(`${key}-folder-input`).addEventListener('change', (e) =>
+    setCompareFiles(key, [...e.target.files].map((f) => ({ file: f, rel: f.webkitRelativePath })), true));
+  const field = $(`${key}-field`);                   // a drop here is for this field, not a new set of recordings
+  field.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove('dragging');
+    field.classList.add('drag-over');
+  });
+  field.addEventListener('dragleave', (e) => { if (!field.contains(e.relatedTarget)) field.classList.remove('drag-over'); });
+  field.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    field.classList.remove('drag-over');
+    try {
+      const { items, folder } = await droppedItems(e, 'Drop one folder, or one or more files.');
+      setCompareFiles(key, items, folder);
+    } catch (err) { $('cmp-status').textContent = t(err.message); }
   });
 }
-folderPick('ref-input', 'ref', 'ref-name');
-folderPick('other-input', 'other', 'other-name', 'clear-other');
-$('clear-other').addEventListener('click', () => {
-  state.other = null;
-  $('other-name').textContent = t('None');
-  $('other-name').parentElement.classList.remove('set');
-  $('clear-other').hidden = true;
-  $('other-name-row').hidden = true;
-});
+$('clear-other').addEventListener('click', () => { state.other = null; compareNames(); });
 $('cmp-run').addEventListener('click', () => {
   $('cmp-status').textContent = t('Comparing…');
-  const as = (prefix, s) => s.files.map((f) => ({ path: `${prefix}/${f.webkitRelativePath}`, file: f }));
+  const as = (prefix, s) => s.items.map(({ file, rel }) =>
+    ({ path: `${prefix}/${s.folder || s.items.length === 1 ? rel : `${s.name}/${rel}`}`, file }));
   worker.postMessage({ type: 'compare', files: [...as('ref', state.ref), ...(state.other ? as('other', state.other) : [])],
-                       reference: `ref/${state.ref.top}`, other: state.other ? `other/${state.other.top}` : null,
+                       reference: `ref/${state.ref.name}`, other: state.other ? `other/${state.other.name}` : null,
                        otherName: $('other-model-name').value.trim() || 'BirdNET', countUnmatched: $('count-unmatched').checked });
 });
 const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)'];

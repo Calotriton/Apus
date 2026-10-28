@@ -173,8 +173,11 @@ const ES = {
     'Mide lo bien que las detecciones de Perch 2.0, el modelo que usa Apus, coinciden con tus propias anotaciones: la proporción de detecciones correctas (precisión) y la proporción de sonidos anotados que se encontraron (exhaustividad). Lo hace para vocalizaciones sueltas y para las especies de cada conjunto de datos (Funosas et al. 2026).',
   'Annotations': 'Anotaciones',
   'No folder chosen': 'Ninguna carpeta elegida',
-  'A folder with one text or CSV file per recording, giving the start, end and species of each sound you annotated.':
-    'Una carpeta con un archivo de texto o CSV por grabación, con el inicio, el fin y la especie de cada sonido que anotaste.',
+  'One text or CSV file per recording, giving the start, end and species of each sound you annotated.':
+    'Un archivo de texto o CSV por grabación, con el inicio, el fin y la especie de cada sonido que anotaste.',
+  'Drop files or a folder here, or choose them.': 'Suelta aquí archivos o una carpeta, o elígelos.',
+  'There are no text or CSV files there.': 'Ahí no hay archivos de texto ni CSV.',
+  'Drop one folder, or one or more files.': 'Suelta una carpeta, o uno o varios archivos.',
   "Another model's detections (optional)": 'Detecciones de otro modelo (opcional)',
   'None': 'Ninguno',
   'Remove': 'Quitar',

@@ -242,6 +242,15 @@ def test_one_table_for_all_recordings(project):
     assert "BirdNET: 2 event(s) in 2 recording(s) from combined" in page["messages"]
 
 
+def test_one_annotation_file_instead_of_a_folder(project):
+    """The page passes a single chosen file as it is, not inside a folder."""
+    run, _ = finished_run(project)
+    ref, _ = references(project)
+    page = json.loads(compare(run, ref / "rec3.txt"))
+    assert "Reference: 2 event(s) in 1 recording(s) from rec3.txt" in page["messages"]
+    assert page["summary"]
+
+
 # ── Times from file names ─────────────────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("name, expected", [
     ("20211027_072000.WAV", datetime(2021, 10, 27, 7, 20)),

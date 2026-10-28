@@ -173,11 +173,14 @@
 
       <div class="panel-body" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" hidden>
         <p class="lede" data-i18n>Measures how well the detections of Perch 2.0, the model Apus runs, match your own annotations: the share of detections that are right (precision), and the share of annotated sounds that were found (recall). It does this for single calls and for the species of each dataset (Funosas et al. 2026).</p>
-        <div class="file-field">
+        <div class="file-field stacked drop-field" id="ref-field">
           <span class="label label-row" id="ref-label"><span data-i18n>Annotations</span><button type="button" class="help" aria-expanded="false" aria-controls="help-ref" data-i18n-attr="aria-label" aria-label="About annotation files">?</button></span>
-          <span class="file-name" id="ref-name" data-i18n>No folder chosen</span>
-          <div class="file-actions"><button type="button" class="button small" id="pick-ref" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button></div>
-          <small data-i18n>A folder with one text or CSV file per recording, giving the start, end and species of each sound you annotated.</small>
+          <span class="file-name" id="ref-name"></span>
+          <div class="file-actions">
+            <button type="button" class="button small" id="pick-ref-files" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-file"/></svg><span data-i18n>Choose files</span></button>
+            <button type="button" class="button small" id="pick-ref-folder" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
+          </div>
+          <small data-i18n>One text or CSV file per recording, giving the start, end and species of each sound you annotated.</small>
           <div class="help-text" id="help-ref" hidden>
             <p data-i18n-html><strong>Formats.</strong> Apus reads three kinds of file:</p>
             <ul>
@@ -193,11 +196,12 @@
             <p data-i18n-html><strong>Annotate everything.</strong> A detection counts as right when its 5 s window overlaps an annotation of the same species in the same recording. Annotate every species you hear, or the detections of the ones you skipped count as false.</p>
           </div>
         </div>
-        <div class="file-field">
+        <div class="file-field stacked drop-field" id="other-field">
           <span class="label label-row" id="other-label"><span data-i18n>Another model's detections (optional)</span><button type="button" class="help" aria-expanded="false" aria-controls="help-other" data-i18n-attr="aria-label" aria-label="About another model's detections">?</button></span>
-          <span class="file-name" id="other-name" data-i18n>None</span>
+          <span class="file-name" id="other-name"></span>
           <div class="file-actions">
-            <button type="button" class="button small" id="pick-other" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
+            <button type="button" class="button small" id="pick-other-files" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-file"/></svg><span data-i18n>Choose files</span></button>
+            <button type="button" class="button small" id="pick-other-folder" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
             <button type="button" class="link" id="clear-other" hidden data-i18n>Remove</button>
           </div>
           <small data-i18n>The result files that another model, such as BirdNET, made for the same recordings. Apus does not run that model: it scores its detections against the same annotations.</small>
@@ -218,8 +222,10 @@
           <label class="switch"><input type="checkbox" role="switch" id="count-unmatched" checked aria-describedby="unmatched-hint"><span data-i18n>Count annotations with a name the model does not know as missed</span></label>
           <small id="unmatched-hint" data-i18n>Off, they are left out. Either way they are listed in comparison/unmatched_labels.csv. Check it: a typo there needs a synonyms file, and a label that is not a species, such as Noise, counts as missed while this is on.</small>
         </div>
-        <input type="file" id="ref-input" webkitdirectory hidden>
-        <input type="file" id="other-input" webkitdirectory hidden>
+        <input type="file" id="ref-files-input" multiple accept=".txt,.csv" hidden>
+        <input type="file" id="ref-folder-input" webkitdirectory hidden>
+        <input type="file" id="other-files-input" multiple accept=".txt,.csv" hidden>
+        <input type="file" id="other-folder-input" webkitdirectory hidden>
         <div class="form-row"><button type="button" class="primary" id="cmp-run" disabled><span data-i18n>Compare</span></button></div>
         <p class="hint tool-status" id="cmp-status" aria-live="polite"></p>
         <div id="cmp-out"></div>
