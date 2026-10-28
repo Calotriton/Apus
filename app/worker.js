@@ -151,8 +151,8 @@ async function modelSpeed() {
 
 async function init({ backend: preference }) {
   await startPython();
-  const model = await modelFile(FILES.model, 'Perch 2.0 (409 MB, only the first time)');
-  const text = async (f) => new TextDecoder().decode(await modelFile(f, 'class names'));
+  const model = await modelFile(FILES.model, 'the model (409 MB, only the first time)');
+  const text = async (f) => new TextDecoder().decode(await modelFile(f, 'the species names'));
   const names = (await text(FILES.labels)).split(/\r?\n/).slice(1).map((s) => s.trim()).filter(Boolean);
   let codes = (await text(FILES.codes)).split(/\r?\n/).slice(1).map((s) => s.trim());
   if (codes.at(-1) === '') codes.pop();
@@ -176,19 +176,19 @@ async function init({ backend: preference }) {
         } else {
           await s.release();
           session = null;
-          note = `The graphics card's results differ from Perch's (by up to ${worst.toExponential(1)}), so the CPU is used.`;
+          note = `The graphics card's results differ from the expected ones (by up to ${worst.toExponential(1)}), so the CPU is used.`;
         }
       }
     } catch (e) {
       session = null;
-      note = `The graphics card could not run Perch (${lastLine(e)}), so the CPU is used.`;
+      note = `The graphics card could not run the model (${lastLine(e)}), so the CPU is used.`;
     }
   }
   if (!backend) {
     status('Preparing the CPU');
     backend = 'CPU';
     const [ok, worst] = await selfTest(await ort.InferenceSession.create(model, { executionProviders: ['wasm'] }));
-    if (!ok) throw new Error(`Perch gives unexpected results in this browser (by up to ${worst}).`);
+    if (!ok) throw new Error(`The model gives unexpected results in this browser (by up to ${worst}).`);
     backend = `CPU (${ort.env.wasm.numThreads} thread${ort.env.wasm.numThreads === 1 ? '' : 's'})`;
   }
   post({ type: 'ready', backend, note, version: VERSION, isolated: self.crossOriginIsolated, names,
@@ -393,7 +393,7 @@ async function check({ files, inputDir, hop_s }) {
 
 // ── Checking detections ──────────────────────────────────────────────────────────────────────────────────
 function needResults() {
-  if (!current) throw new Error('There are no results to work on yet. Run Perch first.');
+  if (!current) throw new Error('There are no results to work on yet. Analyse some recordings first.');
 }
 
 async function species({ name, perBand }) {
@@ -468,7 +468,7 @@ async function calibrate({ target, minClips }) {
 // ── §8: comparison with annotations or another model ───────────────────────────────────────────────────
 async function compare({ files, reference, other, otherName, countUnmatched }) {
   needResults();
-  if (!lastRun) throw new Error('Comparing needs the recordings: choose them and press Run Perch. Recordings already analysed are skipped.');
+  if (!lastRun) throw new Error('Comparing needs the recordings: choose them and press Analyse. Recordings already analysed are skipped.');
   try { py.FS.unmount('/compare'); } catch { /* first comparison */ }
   py.FS.mkdirTree('/compare');
   py.FS.mount(py.FS.filesystems.WORKERFS, { blobs: files.map((f) => ({ name: f.path, data: f.file })) }, '/compare');

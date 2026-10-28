@@ -168,7 +168,7 @@ class Run:
 
     def match_recording(self, name, folder="."):
         """The recording a file name refers to (a recording in the same sub-folder wins), or None."""
-        key = (Path(str(name)).name, folder)
+        key = (Path(str(name).replace("\\", "/")).name, folder)          # also a Windows path, as BirdNET writes
         if key not in self._matches:
             name = key[0]
             cuts = sorted({len(name)} | {i for i, ch in enumerate(name) if ch in "._- "}, reverse=True)

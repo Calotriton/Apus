@@ -27,7 +27,7 @@ In the app:
    They are remembered in this browser. The **?** next to a setting explains it.
 3. **Output.** In Chrome and Edge, choose a folder and the results are written there as the run goes. Otherwise they stay in the browser, and you download them as a ZIP file.
 
-Then press **Run Perch**. A stopped run continues where it stopped. The tab's title shows the progress, and Apus can tell you when a run ends. The page is in English or Spanish: the button next to the night mode switches it.
+Then press **Analyse**. A stopped run continues where it stopped. The tab's title shows the progress, and Apus can tell you when a run ends. The page is in English or Spanish: the button next to the night mode switches it.
 
 The results open in tabs:
 - **Summary:** the counts, the most detected species, and tables you can sort.

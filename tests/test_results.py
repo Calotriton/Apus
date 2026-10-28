@@ -227,6 +227,21 @@ def test_comparison_result_for_the_page(project):
         compare(run, empty)
 
 
+def test_one_table_for_all_recordings(project):
+    """One results table for every recording, with a column naming each one's file (BirdNET's combined CSV),
+    is matched row by row, also with Windows paths."""
+    run, _ = finished_run(project)
+    ref, _ = references(project)
+    combined = project / "combined"
+    combined.mkdir()
+    (combined / "BirdNET_CombinedTable.csv").write_text(
+        "Start (s),End (s),Scientific name,Common name,Confidence,File\n"
+        "0.0,3.0,Turdus merula,Blackbird,0.81,C:\\data\\A\\rec1.wav\n"
+        "0.0,3.0,Erithacus rubecula,Robin,0.7,/data/B/rec3.wav\n")
+    page = json.loads(compare(run, ref, combined, "BirdNET"))
+    assert "BirdNET: 2 event(s) in 2 recording(s) from combined" in page["messages"]
+
+
 # ── Times from file names ─────────────────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("name, expected", [
     ("20211027_072000.WAV", datetime(2021, 10, 27, 7, 20)),

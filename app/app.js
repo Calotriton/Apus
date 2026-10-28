@@ -88,6 +88,7 @@ document.addEventListener('click', (e) => {          // "?" buttons open and clo
 
 // Every text the page writes itself, again in the current language
 function relabel() {
+  if (!state.running) document.title = pageTitle();
   labelLang();
   labelTheme();
   topKHint();
@@ -111,7 +112,7 @@ worker.onmessage = ({ data }) => handlers[data.type]?.(data);
 function chip(text, progress, mode = '') {
   state.chip = [text, progress, mode];
   const shown = progress == null ? t(text) : `${t(text)}: ${Math.round(progress * 100)}%`;
-  $('model-text').textContent = mode === 'ready' ? t('Perch 2.0 ready · {backend}', { backend: translatePy(text) }) : shown;
+  $('model-text').textContent = mode === 'ready' ? t('Model ready · {backend}', { backend: translatePy(text) }) : shown;
   $('model-bar').style.width = progress == null ? '0' : `${Math.round(progress * 100)}%`;
   $('model').classList.toggle('ready', mode === 'ready');
   $('model').classList.toggle('failed', mode === 'failed');
@@ -198,7 +199,7 @@ const handlers = {
     if (request === 'reopen') return;                          // nothing to reopen: the empty page is right
     if (request === 'clear') { alertBox(t('The stored results could not be deleted: {e}', { e: message })); return; }
     finish();
-    if (!state.ready) chip('Perch could not start', null, 'failed');
+    if (!state.ready) chip('The model could not start', null, 'failed');
     alertBox(translatePy(message));
     if (request === 'run') notify(translatePy(message));
   },
@@ -325,7 +326,7 @@ function renderCheck() {
   const rates = Object.entries(c.rates).sort((a, b) => b[1] - a[1]).map(([sr, n]) => `${num(Number(sr) / 1000, 1)} kHz (${n})`);
   const issues = [
     [c.unreadable, (n) => tn(n, '{n} file cannot be read and will be skipped', '{n} files cannot be read and will be skipped'), (r) => `${r[0]}: ${translatePy(r[1])}`],
-    [c.low_rate, (n) => tn(n, '{n} file is below 32 kHz: Perch hears nothing above half its sample rate', '{n} files are below 32 kHz: Perch hears nothing above half their sample rate'), (r) => `${r[0]} (${num(r[1] / 1000, 2)} kHz)`],
+    [c.low_rate, (n) => tn(n, '{n} file is below 32 kHz: it holds no sound above half its sample rate', '{n} files are below 32 kHz: they hold no sound above half their sample rate'), (r) => `${r[0]} (${num(r[1] / 1000, 2)} kHz)`],
     [c.lossy, (n) => tn(n, '{n} file is compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies', '{n} files are compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies'), (r) => `${r[0]} (${r[1]})`],
     [c.short, (n) => tn(n, '{n} file is shorter than 5 s and is padded with silence', '{n} files are shorter than 5 s and are padded with silence'), (r) => `${r[0]} (${num(r[1])} s)`],
   ].filter(([rows]) => rows.length);
@@ -346,7 +347,7 @@ function setList(files, folder) {
 }
 function listName() {
   const l = state.listLabel;
-  $('list-name').textContent = !l ? t('None: every Perch class is kept')
+  $('list-name').textContent = !l ? t('None: every species the model knows is kept')
     : l.built ? tn(l.built, 'Your list ({n} species)', 'Your list ({n} species)')
       : l.folder ? `${l.folder} (${tn(l.n, '{n} file', '{n} files')})` : l.file;
   $('list-name').parentElement.classList.toggle('set', !!l);
@@ -397,7 +398,7 @@ function renderBuilder() {
   $('builder-count').textContent = draft.length ? `(${draft.length})` : '';
 }
 $('build-list').addEventListener('click', () => {
-  if (!state.names.length) { alertBox(t('Wait for Perch to load: the list of its classes comes with it.')); return; }
+  if (!state.names.length) { alertBox(t('Wait for the model to load: the list of its species comes with it.')); return; }
   draft = [...state.built];
   $('builder-search').value = '';
   renderBuilder();
@@ -509,7 +510,7 @@ $('reopen').addEventListener('click', async () => {
 function updateRun() {
   $('run').disabled = !(state.ready && state.recordings) || state.running;
   $('run-hint').textContent = !state.recordings ? t('Choose your recordings first.')
-    : !state.ready ? t('Waiting for Perch to load…') : '';
+    : !state.ready ? t('Waiting for the model to load…') : '';
   $('run-hint').hidden = !$('run-hint').textContent;
   $('settings-line').hidden = !$('run-hint').hidden;
   $('cmp-run').disabled = !state.ref || !state.result;
@@ -552,12 +553,12 @@ function finish() {
   $('stop').hidden = true;
   $('progress').hidden = true;
   $('results-empty').hidden = !$('results').hidden;    // back after a stop or an error; showResults hides it
-  document.title = TITLE;
+  document.title = pageTitle();
   wakeLock?.release().catch(() => {});
   wakeLock = null;
   updateRun();
 }
-const TITLE = document.title;
+const pageTitle = () => t('Apus · Perch 2.0 in your browser');   // during a run the tab shows the progress instead
 $('run').addEventListener('click', () => start(false));
 $('stop').addEventListener('click', () => { worker.postMessage({ type: 'stop' }); $('progress-text').textContent = t('Stopping…'); });
 addEventListener('beforeunload', (e) => { if (state.running) e.preventDefault(); });
@@ -644,7 +645,7 @@ function renderResults(first) {
     `<div class="tile"><span class="label">${esc(t(label))}</span><span class="value">${esc(typeof value === 'number' ? num(value) : value)}</span></div>`).join('');
   $('results-when').hidden = !opts.reopened;
   if (opts.reopened) {
-    $('results-when').textContent = t('Results of {date}, reopened. To listen to detections or compare, choose the same recordings and press Run Perch: analysed recordings are skipped.',
+    $('results-when').textContent = t('Results of {date}, reopened. To listen to detections or compare, choose the same recordings and press Analyse: analysed recordings are skipped.',
       { date: new Date(opts.modified).toLocaleString(getLang(), { dateStyle: 'medium', timeStyle: 'short' }) });
   }
   $('summary').innerHTML = result.lines.map((l) => `<p>${esc(translatePy(l))}</p>`).join('') +
@@ -990,6 +991,7 @@ function folderPick(input, key, nameEl, clearEl) {
     $(nameEl).textContent = `${state[key].top} (${tn(files.length, '{n} file', '{n} files')})`;
     $(nameEl).parentElement.classList.add('set');
     if (clearEl) $(clearEl).hidden = false;
+    if (key === 'other') $('other-name-row').hidden = false;
     updateRun();
   });
 }
@@ -1000,6 +1002,7 @@ $('clear-other').addEventListener('click', () => {
   $('other-name').textContent = t('None');
   $('other-name').parentElement.classList.remove('set');
   $('clear-other').hidden = true;
+  $('other-name-row').hidden = true;
 });
 $('cmp-run').addEventListener('click', () => {
   $('cmp-status').textContent = t('Comparing…');

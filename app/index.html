@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Apus · Perch 2.0 in your browser</title>
-<meta name="description" content="Identify the species in your sound recordings with Google's Perch 2.0, with nothing to install. Your recordings never leave your computer.">
+<meta name="description" content="Identify the species heard in your sound recordings, in your browser, with nothing to install. Apus uses Perch 2.0, Google's model for animal sounds. Your recordings never leave your computer.">
 <meta name="theme-color" content="#f4f6f5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d1312" media="(prefers-color-scheme: dark)">
 <!-- The logo, "Swift and call": drawn in tools/make_icons.py -->
@@ -37,7 +37,7 @@
     <img class="logo" src="icons/logo.svg" width="40" height="40" alt="">
     <div>
       <h1>Apus</h1>
-      <p class="tagline" data-i18n>Species in your recordings, with Google's Perch 2.0</p>
+      <p class="tagline" data-i18n>Identify the species heard in your recordings</p>
     </div>
   </div>
   <div class="top-right">
@@ -72,7 +72,7 @@
       </div>
       <div class="check-box" id="check" hidden aria-live="polite"></div>
       <div class="run-bar">
-        <button type="button" class="primary" id="run" disabled><svg aria-hidden="true"><use href="#i-play"/></svg><span data-i18n>Run Perch</span></button>
+        <button type="button" class="primary" id="run" disabled><svg aria-hidden="true"><use href="#i-play"/></svg><span data-i18n>Analyse</span></button>
         <p class="hint" id="run-hint"></p>
         <p class="settings-line" id="settings-line" hidden><span id="settings-text"></span> <a href="#settings" class="to-settings" data-i18n>Change</a></p>
       </div>
@@ -145,7 +145,16 @@
       </div>
 
       <div class="panel-body" role="tabpanel" id="panel-thresholds" aria-labelledby="tab-thresholds" hidden>
-        <p class="lede" data-i18n>For each species, Apus fits how the chance that a detection is correct grows with its confidence, from the detections you checked, and gives the confidence at which that chance reaches your target. It is the notebook's §9, after Wood and Kahl (2024).</p>
+        <div class="lede-row">
+          <p class="lede" data-i18n>Sets a confidence threshold for each species from the detections you checked, so that its detections are right as often as you ask.</p>
+          <button type="button" class="help" aria-expanded="false" aria-controls="help-species-threshold" data-i18n-attr="aria-label" aria-label="About species thresholds">?</button>
+        </div>
+        <div class="help-text" id="help-species-threshold" hidden>
+          <p data-i18n-html><strong>What it is.</strong> The lowest confidence score that a detection of one species needs to be kept.</p>
+          <p data-i18n-html><strong>Why.</strong> The threshold in Settings is the same for every species, but a score does not mean the same for each. A score of 0.5 can be almost always right for one species and wrong half the time for another.</p>
+          <p data-i18n-html><strong>How.</strong> From your checks, Apus works out how the share of correct detections grows with the score, and finds the score at which it reaches your target. With a target of 0.95, about 95 in 100 detections at the threshold are right, and more of those above it (Wood and Kahl 2024).</p>
+          <p data-i18n-html><strong>What it costs.</strong> A higher threshold also drops correct detections: <em>Correct kept</em> shows how many of yours stay. Your checks tell how often detections are right, not how many calls were missed.</p>
+        </div>
         <div class="form-row">
           <div class="field">
             <label for="cal-target" data-i18n>Target chance of being correct</label>
@@ -157,34 +166,58 @@
           </div>
           <button type="button" class="primary" id="cal-run"><span data-i18n>Fit thresholds</span></button>
         </div>
-        <p class="hint" data-i18n>Detections marked unsure are left out. Clips you sorted into correct and incorrect folders, as the notebook asks, count too. A threshold holds for recordings like the ones you checked: the same sites, season and recorders.</p>
+        <p class="hint" data-i18n>Detections marked unsure are left out. If you listened to the audio clips outside Apus, clips you moved into folders named correct and incorrect, inside each species' clip folder, count too. A threshold holds for recordings like the ones you checked: the same sites, season and recorders.</p>
         <p class="hint tool-status" id="cal-status" aria-live="polite"></p>
         <div id="cal-out"></div>
       </div>
 
       <div class="panel-body" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" hidden>
-        <p class="lede" data-i18n>Scores Perch against your own annotations, and optionally another model such as BirdNET against the same annotations. It is the notebook's §8, with the two levels of Funosas et al. (2026): single calls, and species per dataset.</p>
+        <p class="lede" data-i18n>Measures how well the detections of Perch 2.0, the model Apus runs, match your own annotations: the share of detections that are right (precision), and the share of annotated sounds that were found (recall). It does this for single calls and for the species of each dataset (Funosas et al. 2026).</p>
         <div class="file-field">
-          <span class="label" id="ref-label" data-i18n>Annotations</span>
+          <span class="label label-row" id="ref-label"><span data-i18n>Annotations</span><button type="button" class="help" aria-expanded="false" aria-controls="help-ref" data-i18n-attr="aria-label" aria-label="About annotation files">?</button></span>
           <span class="file-name" id="ref-name" data-i18n>No folder chosen</span>
           <div class="file-actions"><button type="button" class="button small" id="pick-ref" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button></div>
-          <small data-i18n-html>One file per recording, whose name starts with the recording's name: Audacity labels, Raven selection tables, or any table with start, end and species columns.</small>
+          <small data-i18n>A folder with one text or CSV file per recording, giving the start, end and species of each sound you annotated.</small>
+          <div class="help-text" id="help-ref" hidden>
+            <p data-i18n-html><strong>Formats.</strong> Apus reads three kinds of file:</p>
+            <ul>
+              <li data-i18n-html>Audacity labels: start, end and species, separated by tabs.</li>
+              <li data-i18n-html>Raven selection tables with a <code>Species</code> column.</li>
+              <li data-i18n-html>Any table with a start and an end in seconds and a species, in columns with English names such as <code>start</code>, <code>end</code> and <code>species</code>.</li>
+            </ul>
+            <pre class="example">start,end,species
+0.5,3.0,Turdus merula
+6.0,9.5,Parus major</pre>
+            <p data-i18n-html><strong>File names.</strong> Each file's name starts with its recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. Recordings without a file are left out. An empty file means you listened and found nothing.</p>
+            <p data-i18n-html><strong>Species names.</strong> Scientific names or eBird codes. For other names, such as common names, add a synonyms file in Settings.</p>
+            <p data-i18n-html><strong>Annotate everything.</strong> A detection counts as right when its 5 s window overlaps an annotation of the same species in the same recording. Annotate every species you hear, or the detections of the ones you skipped count as false.</p>
+          </div>
         </div>
         <div class="file-field">
-          <span class="label" id="other-label" data-i18n>Another model (optional)</span>
+          <span class="label label-row" id="other-label"><span data-i18n>Another model's detections (optional)</span><button type="button" class="help" aria-expanded="false" aria-controls="help-other" data-i18n-attr="aria-label" aria-label="About another model's detections">?</button></span>
           <span class="file-name" id="other-name" data-i18n>None</span>
           <div class="file-actions">
             <button type="button" class="button small" id="pick-other" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
             <button type="button" class="link" id="clear-other" hidden data-i18n>Remove</button>
           </div>
+          <small data-i18n>The result files that another model, such as BirdNET, made for the same recordings. Apus does not run that model: it scores its detections against the same annotations.</small>
+          <div class="help-text" id="help-other" hidden>
+            <p data-i18n-html>The same formats as the annotations, plus a column with each detection's confidence, named <code>confidence</code> or <code>score</code>. BirdNET's CSV results work as they are:</p>
+            <pre class="example">Start (s),End (s),Scientific name,Common name,Confidence
+0.0,3.0,Turdus merula,Eurasian Blackbird,0.81</pre>
+            <p data-i18n-html>One table for all the recordings also works, if a column names each detection's file, as BirdNET's <code>File</code> column does. Without a confidence column, every detection counts as certain.</p>
+          </div>
         </div>
-        <div class="form-row">
+        <div class="form-row" id="other-name-row" hidden>
           <div class="field">
-            <label for="other-model-name" data-i18n>Its name</label>
+            <label for="other-model-name" data-i18n>Its name in the results</label>
             <input type="text" id="other-model-name" value="BirdNET">
           </div>
         </div>
-        <label class="switch"><input type="checkbox" role="switch" id="count-unmatched" checked><span data-i18n>Count annotations of species Perch has no class for as missed</span></label>
+        <div class="field">
+          <label class="switch"><input type="checkbox" role="switch" id="count-unmatched" checked aria-describedby="unmatched-hint"><span data-i18n>Count annotations with a name the model does not know as missed</span></label>
+          <small id="unmatched-hint" data-i18n>Off, they are left out. Either way they are listed in comparison/unmatched_labels.csv. Check it: a typo there needs a synonyms file, and a label that is not a species, such as Noise, counts as missed while this is on.</small>
+        </div>
         <input type="file" id="ref-input" webkitdirectory hidden>
         <input type="file" id="other-input" webkitdirectory hidden>
         <div class="form-row"><button type="button" class="primary" id="cmp-run" disabled><span data-i18n>Compare</span></button></div>
@@ -232,7 +265,7 @@
       <h3 data-i18n>Detection</h3>
       <div class="field">
         <div class="label-row"><label for="threshold" data-i18n>Threshold</label><button type="button" class="help" aria-expanded="false" aria-controls="help-threshold" data-i18n-attr="aria-label" aria-label="About the threshold">?</button></div>
-        <p class="help-text" id="help-threshold" hidden data-i18n>Perch gives every species a confidence score from 0 to 1 in each 5 s window. A detection is a score at or above this threshold. A lower threshold finds more calls, but also more false detections. A score is not a probability, and the same score means different things for different species. To set a threshold per species, check some detections and use the Thresholds tab.</p>
+        <p class="help-text" id="help-threshold" hidden data-i18n>The model gives every species a confidence score from 0 to 1 in each 5 s window. A detection is a score at or above this threshold. A lower threshold finds more calls, but also more false detections. A score is not a probability, and the same score means different things for different species. To set a threshold per species, check some detections and use the Thresholds tab.</p>
         <div class="slider">
           <input type="range" id="threshold-range" min="0.01" max="0.99" step="0.01" value="0.10" data-i18n-attr="aria-label" aria-label="Threshold" aria-describedby="threshold-hint">
           <input type="number" id="threshold" min="0.01" max="0.99" step="0.01" value="0.10" aria-describedby="threshold-hint">
@@ -241,9 +274,9 @@
       </div>
       <div class="field">
         <div class="label-row"><label for="hop_s" data-i18n>Window hop</label><button type="button" class="help" aria-expanded="false" aria-controls="help-hop" data-i18n-attr="aria-label" aria-label="About the window hop">?</button></div>
-        <p class="help-text" id="help-hop" hidden data-i18n>Perch listens to 5 s windows. With a 5 s hop the windows follow each other. With 2.5 s they overlap by half: a call cut by a window's edge is heard whole in the next one, but the run takes twice as long, and a call in two windows is detected twice.</p>
+        <p class="help-text" id="help-hop" hidden data-i18n>The model listens to 5 s windows. With a 5 s hop the windows follow each other. With 2.5 s they overlap by half: a call cut by a window's edge is heard whole in the next one, but the run takes twice as long, and a call in two windows is detected twice.</p>
         <select id="hop_s" aria-describedby="hop-hint"><option value="5" data-i18n>5 s: windows back to back</option><option value="2.5" data-i18n>2.5 s: windows overlap by half</option></select>
-        <small id="hop-hint" data-i18n>Perch listens to 5 s windows</small>
+        <small id="hop-hint" data-i18n>The model listens to 5 s windows</small>
       </div>
       <div class="field">
         <div class="label-row"><label for="top_k" data-i18n>Species kept per window</label><button type="button" class="help" aria-expanded="false" aria-controls="help-topk" data-i18n-attr="aria-label" aria-label="About species kept per window">?</button></div>
@@ -277,8 +310,8 @@
           <button type="button" class="link" id="clear-syn" hidden data-i18n>Remove</button>
         </div>
         <input type="file" id="syn-input" accept=".csv,.txt" hidden>
-        <p class="help-text" id="help-syn" hidden data-i18n>If your lists or annotations use names that Perch spells differently, such as an older taxonomy, this table maps each of your names to Perch's. Apus already knows the eBird 2021 names that changed.</p>
-        <small data-i18n-html>Two columns, your name then Perch's, for example <code>Corvus monedula,Coloeus monedula</code></small>
+        <p class="help-text" id="help-syn" hidden data-i18n>If your lists or annotations use names that the model spells differently, such as an older taxonomy, this table maps each of your names to the model's. Apus already knows the eBird 2021 names that changed.</p>
+        <small data-i18n-html>Two columns, your name then the model's, for example <code>Corvus monedula,Coloeus monedula</code></small>
       </div>
     </section>
 
@@ -329,7 +362,7 @@
       <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="resume" checked><span data-i18n>Continue a stopped run: skip recordings already analysed in the output</span></label></div>
       <div class="field">
         <div class="label-row"><label for="backend" data-i18n>Compute on</label><button type="button" class="help" aria-expanded="false" aria-controls="help-backend" data-i18n-attr="aria-label" aria-label="About the compute device">?</button></div>
-        <p class="help-text" id="help-backend" hidden data-i18n>The graphics card is several times faster. Apus uses it only if, in a check at start-up, it gives the same results as Perch's own model.</p>
+        <p class="help-text" id="help-backend" hidden data-i18n>The graphics card is several times faster. Apus uses it only if its results pass a check at start-up.</p>
         <select id="backend" aria-describedby="backend-hint"><option value="auto" data-i18n>The graphics card if it passes a check, otherwise the CPU</option><option value="cpu" data-i18n>The CPU only</option></select>
         <small id="backend-hint" data-i18n>Changing this reloads the page</small>
       </div>
@@ -339,10 +372,10 @@
 </div>
 
 <footer>
-  <p><span data-i18n>Perch 2.0 © Google, Apache 2.0 licence:</span> van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
+  <p><span data-i18n>Species are identified by Perch 2.0, Google's model for animal sounds (© Google, Apache 2.0 licence):</span> van Merriënboer et al. (2025), <a href="https://arxiv.org/abs/2508.04665">arXiv:2508.04665</a>.
      <span data-i18n>ONNX conversion by Justin Chu.</span> <span data-i18n>Runs on</span> <a href="https://onnxruntime.ai">ONNX Runtime Web</a> <span data-i18n>and</span> <a href="https://pyodide.org">Pyodide</a>.
      <span data-i18n>Apus is not affiliated with Google.</span></p>
-  <p data-i18n-html>The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.</p>
+  <p data-i18n>The model (409 MB) downloads once and stays in your browser. Its results match those of Google's original version.</p>
 </footer>
 
 <dialog id="ask" aria-labelledby="ask-text">
@@ -359,9 +392,9 @@
   <form method="dialog" class="builder-form">
     <div class="builder-head">
       <h2 id="builder-title" data-i18n>Build a species list</h2>
-      <p class="hint" data-i18n>Search Perch's 14,795 classes by scientific name and add the species you expect. The list applies to every dataset.</p>
+      <p class="hint" data-i18n>Search the species the model knows (14,795 classes) by scientific name, and add the ones you expect. The list applies to every dataset.</p>
     </div>
-    <label class="sr-only" for="builder-search" data-i18n>Search Perch's classes</label>
+    <label class="sr-only" for="builder-search" data-i18n>Search the model's species</label>
     <input type="search" id="builder-search" data-i18n-attr="placeholder" placeholder="Search, e.g. Turdus" autocomplete="off">
     <div class="builder-cols">
       <div>

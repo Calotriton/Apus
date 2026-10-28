@@ -88,13 +88,13 @@ const PY = [
   [/^(.+): not found: (.+)$/, (m) => `${m[1]}: no se encuentra ${m[2]}`],
   [/^Could not download (.+) \(HTTP (\d+)\)\.$/, (m) => `No se pudo descargar ${m[1]} (HTTP ${m[2]}).`],
   [/^(.+) is not the expected file\. Reload the page to download it again\.$/, (m) => `${m[1]} no es el archivo esperado. Recarga la página para descargarlo de nuevo.`],
-  [/^Perch gives unexpected results in this browser \(by up to (.+)\)\.$/, (m) => `Perch da resultados inesperados en este navegador (diferencias de hasta ${m[1]}).`],
-  [/^The graphics card's results differ from Perch's \(by up to (.+)\), so the CPU is used\.$/, (m) => `Los resultados de la tarjeta gráfica difieren de los de Perch (hasta ${m[1]}), así que se usa la CPU.`],
-  [/^The graphics card could not run Perch \((.*)\), so the CPU is used\.$/, (m) => `La tarjeta gráfica no pudo ejecutar Perch (${m[1]}), así que se usa la CPU.`],
+  [/^The model gives unexpected results in this browser \(by up to (.+)\)\.$/, (m) => `El modelo da resultados inesperados en este navegador (diferencias de hasta ${m[1]}).`],
+  [/^The graphics card's results differ from the expected ones \(by up to (.+)\), so the CPU is used\.$/, (m) => `Los resultados de la tarjeta gráfica difieren de los esperados (hasta ${m[1]}), así que se usa la CPU.`],
+  [/^The graphics card could not run the model \((.*)\), so the CPU is used\.$/, (m) => `La tarjeta gráfica no pudo ejecutar el modelo (${m[1]}), así que se usa la CPU.`],
   [/^This page is not cross-origin isolated, so the CPU uses one thread \(slower\)\.$/, () => 'Esta página no está aislada (cross-origin isolated), así que la CPU usa un solo hilo (más lento).'],
-  [/^There are no results to work on yet\. Run Perch first\.$/, () => 'Todavía no hay resultados con los que trabajar. Analiza primero con Perch.'],
+  [/^There are no results to work on yet\. Analyse some recordings first\.$/, () => 'Todavía no hay resultados con los que trabajar. Analiza primero algunas grabaciones.'],
   [/^To listen, choose the same recordings again\.$/, () => 'Para escuchar, vuelve a elegir las mismas grabaciones.'],
-  [/^Comparing needs the recordings: .*$/, () => 'Para comparar hacen falta las grabaciones: elígelas y pulsa Analizar con Perch. Las grabaciones ya analizadas se saltan.'],
+  [/^Comparing needs the recordings: .*$/, () => 'Para comparar hacen falta las grabaciones: elígelas y pulsa Analizar. Las grabaciones ya analizadas se saltan.'],
   [/^predictions\.csv is not in the output, so the recording effort is unknown\.$/, () => 'predictions.csv no está en la salida, así que no se conoce el esfuerzo de grabación.'],
   [/^Reference: (\d+) event\(s\) in (\d+) recording\(s\) from (.+)$/, (m) => `Referencia: ${m[1]} evento(s) en ${m[2]} grabación(es) de ${m[3]}`],
   [/^(.+): (\d+) event\(s\) in (\d+) recording\(s\) from (.+)$/, (m) => `${m[1]}: ${m[2]} evento(s) en ${m[3]} grabación(es) de ${m[4]}`],
@@ -118,9 +118,15 @@ const PY = [
   [/^the file holds no audio$/, () => 'el archivo no contiene audio'],
   [/^⚠ (.+?): (.+)$/, (m) => `⚠ ${m[1]}: ${translatePy(m[2])}`],
 ];
+// The notebook's setting names, which a few messages and output files contain, in plain words in English too
+const EN = [
+  [/^only (\d+) clip\(s\) \(MIN_CLIPS = (\d+)\)$/, (m) => `only ${m[1]} checked (fewest: ${m[2]})`],
+  [/^(.+: counted as missed) \(COUNT_UNMATCHED_AS_MISSED = True\)\.$/, (m) => `${m[1]}.`],
+];
 const dec = (s) => (lang === 'es' ? String(s).replace('.', ',') : s);
 export function translatePy(text) {
-  if (lang !== 'es' || !text) return text;
+  if (!text) return text;
+  if (lang !== 'es') return EN.reduce((out, [re, f]) => out.replace(re, (...m) => f(m)), text);
   if (text.includes('; ') && !/^Species list: /.test(text)) return text.split('; ').map(translatePy).join('; ');
   if (ES[text]) return ES[text];
   for (const [re, f] of PY) { const m = text.match(re); if (m) return f(m); }
@@ -128,12 +134,13 @@ export function translatePy(text) {
 }
 
 const ES = {
-  "Species in your recordings, with Google's Perch 2.0": 'Especies en tus grabaciones, con Perch 2.0 de Google',
+  'Apus · Perch 2.0 in your browser': 'Apus · Perch 2.0 en tu navegador',
+  'Identify the species heard in your recordings': 'Identifica las especies que se oyen en tus grabaciones',
   'Recordings': 'Grabaciones',
   'Choose a folder': 'Elegir una carpeta',
   'Choose files': 'Elegir archivos',
   'WAV, FLAC and OGG files work.': 'Funcionan los archivos WAV, FLAC y OGG.',
-  'Run Perch': 'Analizar con Perch',
+  'Analyse': 'Analizar',
   'Change': 'Cambiar',
   'Analysing': 'Analizando',
   'Stop': 'Detener',
@@ -155,24 +162,25 @@ const ES = {
     'Escucha las detecciones y marca cada una. Para cada especie, Apus ofrece una muestra al azar en cada franja de confianza, para que tus revisiones cubran por igual puntuaciones bajas y altas. Te dicen con qué frecuencia acierta una detección a cada confianza, y la pestaña Umbrales las usa.',
   'Find a species': 'Buscar una especie',
   'Pick a species to check its detections.': 'Elige una especie para revisar sus detecciones.',
-  "For each species, Apus fits how the chance that a detection is correct grows with its confidence, from the detections you checked, and gives the confidence at which that chance reaches your target. It is the notebook's §9, after Wood and Kahl (2024).":
-    'Para cada especie, Apus ajusta cómo crece con la confianza la probabilidad de que una detección sea correcta, a partir de las detecciones que revisaste, y da la confianza a la que esa probabilidad alcanza tu objetivo. Es la §9 del cuaderno, según Wood y Kahl (2024).',
+  'Sets a confidence threshold for each species from the detections you checked, so that its detections are right as often as you ask.':
+    'Fija un umbral de confianza para cada especie a partir de las detecciones que revisaste, para que sus detecciones acierten tan a menudo como pidas.',
   'Target chance of being correct': 'Probabilidad objetivo de acierto',
   'Fewest checked detections': 'Mínimo de detecciones revisadas',
   'Fit thresholds': 'Ajustar umbrales',
-  'Detections marked unsure are left out. Clips you sorted into correct and incorrect folders, as the notebook asks, count too. A threshold holds for recordings like the ones you checked: the same sites, season and recorders.':
-    'Las detecciones marcadas como dudosas quedan fuera. También cuentan los fragmentos que hayas ordenado en carpetas correct e incorrect, como pide el cuaderno. Un umbral vale para grabaciones como las que revisaste: los mismos sitios, estación y grabadoras.',
-  "Scores Perch against your own annotations, and optionally another model such as BirdNET against the same annotations. It is the notebook's §8, with the two levels of Funosas et al. (2026): single calls, and species per dataset.":
-    'Evalúa Perch frente a tus propias anotaciones y, si quieres, otro modelo como BirdNET frente a las mismas anotaciones. Es la §8 del cuaderno, con los dos niveles de Funosas et al. (2026): vocalizaciones sueltas y especies por conjunto de datos.',
+  "Detections marked unsure are left out. If you listened to the audio clips outside Apus, clips you moved into folders named correct and incorrect, inside each species' clip folder, count too. A threshold holds for recordings like the ones you checked: the same sites, season and recorders.":
+    'Las detecciones marcadas como dudosas quedan fuera. Si escuchaste los fragmentos de audio fuera de Apus, también cuentan los que moviste a carpetas llamadas correct e incorrect dentro de la carpeta de fragmentos de cada especie. Un umbral vale para grabaciones como las que revisaste: los mismos sitios, estación y grabadoras.',
+  'Measures how well the detections of Perch 2.0, the model Apus runs, match your own annotations: the share of detections that are right (precision), and the share of annotated sounds that were found (recall). It does this for single calls and for the species of each dataset (Funosas et al. 2026).':
+    'Mide lo bien que las detecciones de Perch 2.0, el modelo que usa Apus, coinciden con tus propias anotaciones: la proporción de detecciones correctas (precisión) y la proporción de sonidos anotados que se encontraron (exhaustividad). Lo hace para vocalizaciones sueltas y para las especies de cada conjunto de datos (Funosas et al. 2026).',
   'Annotations': 'Anotaciones',
   'No folder chosen': 'Ninguna carpeta elegida',
-  "One file per recording, whose name starts with the recording's name: Audacity labels, Raven selection tables, or any table with start, end and species columns.":
-    'Un archivo por grabación, cuyo nombre empiece por el de la grabación: etiquetas de Audacity, tablas de selección de Raven o cualquier tabla con columnas de inicio, fin y especie.',
-  'Another model (optional)': 'Otro modelo (opcional)',
+  'A folder with one text or CSV file per recording, giving the start, end and species of each sound you annotated.':
+    'Una carpeta con un archivo de texto o CSV por grabación, con el inicio, el fin y la especie de cada sonido que anotaste.',
+  "Another model's detections (optional)": 'Detecciones de otro modelo (opcional)',
   'None': 'Ninguno',
   'Remove': 'Quitar',
-  'Its name': 'Su nombre',
-  'Count annotations of species Perch has no class for as missed': 'Contar como no detectadas las anotaciones de especies sin clase en Perch',
+  'Its name in the results': 'Su nombre en los resultados',
+  'Count annotations with a name the model does not know as missed':
+    'Contar como no detectadas las anotaciones con un nombre que el modelo no conoce',
   'Reads the date and time from each recording\'s file name, such as 20211027_072000, and shows when each species was detected. Activity is given per hour of recording, so hours with more recording do not look busier.':
     'Lee la fecha y la hora del nombre de cada grabación, como 20211027_072000, y muestra cuándo se detectó cada especie. La actividad se da por hora de grabación, así que las horas con más grabación no parecen más activas.',
   'Times in the file names are': 'Las horas de los nombres están en',
@@ -192,16 +200,16 @@ const ES = {
   'Detection': 'Detección',
   'Threshold': 'Umbral',
   'About the threshold': 'Sobre el umbral',
-  'Perch gives every species a confidence score from 0 to 1 in each 5 s window. A detection is a score at or above this threshold. A lower threshold finds more calls, but also more false detections. A score is not a probability, and the same score means different things for different species. To set a threshold per species, check some detections and use the Thresholds tab.':
-    'Perch da a cada especie una puntuación de confianza de 0 a 1 en cada ventana de 5 s. Una detección es una puntuación igual o superior a este umbral. Un umbral más bajo encuentra más cantos, pero también más detecciones falsas. Una puntuación no es una probabilidad, y la misma puntuación significa cosas distintas para especies distintas. Para fijar un umbral por especie, revisa algunas detecciones y usa la pestaña Umbrales.',
+  'The model gives every species a confidence score from 0 to 1 in each 5 s window. A detection is a score at or above this threshold. A lower threshold finds more calls, but also more false detections. A score is not a probability, and the same score means different things for different species. To set a threshold per species, check some detections and use the Thresholds tab.':
+    'El modelo da a cada especie una puntuación de confianza de 0 a 1 en cada ventana de 5 s. Una detección es una puntuación igual o superior a este umbral. Un umbral más bajo encuentra más cantos, pero también más detecciones falsas. Una puntuación no es una probabilidad, y la misma puntuación significa cosas distintas para especies distintas. Para fijar un umbral por especie, revisa algunas detecciones y usa la pestaña Umbrales.',
   'The lowest confidence score (0 to 1) that counts as a detection': 'La puntuación de confianza mínima (de 0 a 1) que cuenta como detección',
   'Window hop': 'Salto entre ventanas',
   'About the window hop': 'Sobre el salto entre ventanas',
-  "Perch listens to 5 s windows. With a 5 s hop the windows follow each other. With 2.5 s they overlap by half: a call cut by a window's edge is heard whole in the next one, but the run takes twice as long, and a call in two windows is detected twice.":
-    'Perch escucha ventanas de 5 s. Con un salto de 5 s las ventanas van seguidas. Con 2,5 s se solapan a la mitad: un canto cortado por el borde de una ventana se oye entero en la siguiente, pero el análisis tarda el doble y un canto que cae en dos ventanas se detecta dos veces.',
+  "The model listens to 5 s windows. With a 5 s hop the windows follow each other. With 2.5 s they overlap by half: a call cut by a window's edge is heard whole in the next one, but the run takes twice as long, and a call in two windows is detected twice.":
+    'El modelo escucha ventanas de 5 s. Con un salto de 5 s las ventanas van seguidas. Con 2,5 s se solapan a la mitad: un canto cortado por el borde de una ventana se oye entero en la siguiente, pero el análisis tarda el doble y un canto que cae en dos ventanas se detecta dos veces.',
   '5 s: windows back to back': '5 s: ventanas seguidas',
   '2.5 s: windows overlap by half': '2,5 s: ventanas solapadas a la mitad',
-  'Perch listens to 5 s windows': 'Perch escucha ventanas de 5 s',
+  'The model listens to 5 s windows': 'El modelo escucha ventanas de 5 s',
   'Species kept per window': 'Especies por ventana',
   'About species kept per window': 'Sobre las especies por ventana',
   'How many of the best-scoring species are kept for each window, before the threshold. It must be at least 1 divided by the threshold (10 for 0.10), or a species above the threshold could be cut. Apus raises it when needed.':
@@ -219,10 +227,10 @@ const ES = {
     'Una especie por línea. Un archivo con el nombre de un conjunto de datos, como <code>SiteA.txt</code>, se aplica a ese conjunto. Un archivo cuyo nombre empiece por el de una grabación se aplica a esa grabación.',
   'Synonyms': 'Sinónimos',
   'About synonyms': 'Sobre los sinónimos',
-  "If your lists or annotations use names that Perch spells differently, such as an older taxonomy, this table maps each of your names to Perch's. Apus already knows the eBird 2021 names that changed.":
-    'Si tus listas o anotaciones usan nombres que Perch escribe de otra forma, como una taxonomía más antigua, esta tabla asigna cada uno de tus nombres al de Perch. Apus ya conoce los nombres de eBird 2021 que cambiaron.',
-  "Two columns, your name then Perch's, for example <code>Corvus monedula,Coloeus monedula</code>":
-    'Dos columnas, tu nombre y luego el de Perch, por ejemplo <code>Corvus monedula,Coloeus monedula</code>',
+  "If your lists or annotations use names that the model spells differently, such as an older taxonomy, this table maps each of your names to the model's. Apus already knows the eBird 2021 names that changed.":
+    'Si tus listas o anotaciones usan nombres que el modelo escribe de otra forma, como una taxonomía más antigua, esta tabla asigna cada uno de tus nombres al del modelo. Apus ya conoce los nombres de eBird 2021 que cambiaron.',
+  "Two columns, your name then the model's, for example <code>Corvus monedula,Coloeus monedula</code>":
+    'Dos columnas, tu nombre y luego el del modelo, por ejemplo <code>Corvus monedula,Coloeus monedula</code>',
   'Output': 'Salida',
   'Save to': 'Guardar en',
   'About the output folder': 'Sobre la carpeta de salida',
@@ -253,24 +261,25 @@ const ES = {
   'Continue a stopped run: skip recordings already analysed in the output': 'Continuar un análisis detenido: saltar las grabaciones ya analizadas en la salida',
   'Compute on': 'Calcular con',
   'About the compute device': 'Sobre el dispositivo de cálculo',
-  "The graphics card is several times faster. Apus uses it only if, in a check at start-up, it gives the same results as Perch's own model.":
-    'La tarjeta gráfica es varias veces más rápida. Apus solo la usa si, en una comprobación al arrancar, da los mismos resultados que el modelo original de Perch.',
+  'The graphics card is several times faster. Apus uses it only if its results pass a check at start-up.':
+    'La tarjeta gráfica es varias veces más rápida. Apus solo la usa si sus resultados pasan una comprobación al arrancar.',
   'The graphics card if it passes a check, otherwise the CPU': 'La tarjeta gráfica si pasa una comprobación; si no, la CPU',
   'The CPU only': 'Solo la CPU',
   'Changing this reloads the page': 'Cambiarlo recarga la página',
   'Delete the results stored in this browser': 'Borrar los resultados guardados en este navegador',
-  'Perch 2.0 © Google, Apache 2.0 licence:': 'Perch 2.0 © Google, licencia Apache 2.0:',
+  "Species are identified by Perch 2.0, Google's model for animal sounds (© Google, Apache 2.0 licence):":
+    'Las especies las identifica Perch 2.0, el modelo de Google para sonidos animales (© Google, licencia Apache 2.0):',
   'ONNX conversion by Justin Chu.': 'Conversión a ONNX de Justin Chu.',
   'Runs on': 'Funciona con',
   'and': 'y',
   'Apus is not affiliated with Google.': 'Apus no está afiliado a Google.',
-  'The model (409 MB) downloads once and stays in your browser. The analysis copies the notebook <em>perch_all_in_one</em> step by step and gives the same results.':
-    'El modelo (409 MB) se descarga una vez y se queda en tu navegador. El análisis copia paso a paso el cuaderno <em>perch_all_in_one</em> y da los mismos resultados.',
+  "The model (409 MB) downloads once and stays in your browser. Its results match those of Google's original version.":
+    'El modelo (409 MB) se descarga una vez y se queda en tu navegador. Sus resultados coinciden con los de la versión original de Google.',
   'Cancel': 'Cancelar',
   'Build a species list': 'Crear una lista de especies',
-  "Search Perch's 14,795 classes by scientific name and add the species you expect. The list applies to every dataset.":
-    'Busca entre las 14.795 clases de Perch por nombre científico y añade las especies que esperas. La lista se aplica a todos los conjuntos de datos.',
-  "Search Perch's classes": 'Buscar entre las clases de Perch',
+  'Search the species the model knows (14,795 classes) by scientific name, and add the ones you expect. The list applies to every dataset.':
+    'Busca por nombre científico entre las especies que conoce el modelo (14.795 clases) y añade las que esperas. La lista se aplica a todos los conjuntos de datos.',
+  "Search the model's species": 'Buscar entre las especies del modelo',
   'Search, e.g. Turdus': 'Buscar, p. ej. Turdus',
   'Matches': 'Coincidencias',
   'Your list': 'Tu lista',
@@ -281,7 +290,7 @@ const ES = {
   'Threshold {t} · {h} s hop · {k} species per window': 'Umbral {t} · salto de {h} s · {k} especies por ventana',
   'Day mode': 'Modo día',
   'Night mode': 'Modo noche',
-  'Perch 2.0 ready · {backend}': 'Perch 2.0 listo · {backend}',
+  'Model ready · {backend}': 'Modelo listo · {backend}',
   'Recording {i} of {n}: {file} · {rate} windows/s · {left} left': 'Grabación {i} de {n}: {file} · {rate} ventanas/s · quedan {left}',
   'The output already holds results. Replace them with this run?': 'La salida ya contiene resultados. ¿Sustituirlos por este análisis?',
   'Replace': 'Sustituir',
@@ -304,14 +313,15 @@ const ES = {
   'The recordings could not be checked: {e}': 'No se pudieron comprobar las grabaciones: {e}',
   '{d} of audio': '{d} de audio',
   'Sample rates: {r}': 'Frecuencias de muestreo: {r}',
-  'None: every Perch class is kept': 'Ninguna: se conservan todas las clases de Perch',
+  'None: every species the model knows is kept': 'Ninguna: se conservan todas las especies que conoce el modelo',
   'Type at least two letters.': 'Escribe al menos dos letras.',
   'No class matches.': 'Ninguna clase coincide.',
   'Added': 'Añadida',
   'Add': 'Añadir',
   'Remove {name}': 'Quitar {name}',
   'No species yet.': 'Todavía no hay especies.',
-  'Wait for Perch to load: the list of its classes comes with it.': 'Espera a que cargue Perch: la lista de sus clases llega con él.',
+  'Wait for the model to load: the list of its species comes with it.':
+    'Espera a que cargue el modelo: la lista de sus especies llega con él.',
   'The results stay in this browser, and you download them as a ZIP file at the end.': 'Los resultados se quedan en este navegador, y al final los descargas como archivo ZIP.',
   'Recommended: the results are written there as the run goes. Without a folder, they stay in this browser and you download them as a ZIP file at the end.':
     'Recomendado: los resultados se escriben ahí mientras avanza el análisis. Sin carpeta, se quedan en este navegador y al final los descargas como archivo ZIP.',
@@ -321,7 +331,7 @@ const ES = {
   'Reopen the results in {name}': 'Volver a abrir los resultados de {name}',
   'Apus may not open the folder {name}. Choose it again.': 'Apus no tiene permiso para abrir la carpeta {name}. Vuelve a elegirla.',
   'Choose your recordings first.': 'Elige primero tus grabaciones.',
-  'Waiting for Perch to load…': 'Esperando a que cargue Perch…',
+  'Waiting for the model to load…': 'Esperando a que cargue el modelo…',
   'Apus may not write into the folder {name}. Choose it again.': 'Apus no tiene permiso para escribir en la carpeta {name}. Vuelve a elegirla.',
   'Starting…': 'Empezando…',
   'Stopping…': 'Deteniendo…',
@@ -329,8 +339,8 @@ const ES = {
   "Notifications are blocked for this page. Allow them in the browser's site settings.": 'Las notificaciones están bloqueadas para esta página. Permítelas en la configuración del sitio del navegador.',
   'No detections at this threshold: try a lower one.': 'No hay detecciones con este umbral: prueba uno más bajo.',
   'Detections of the {n} most detected species': 'Detecciones de las {n} especies más detectadas',
-  'Results of {date}, reopened. To listen to detections or compare, choose the same recordings and press Run Perch: analysed recordings are skipped.':
-    'Resultados del {date}, abiertos de nuevo. Para escuchar detecciones o comparar, elige las mismas grabaciones y pulsa Analizar con Perch: las grabaciones ya analizadas se saltan.',
+  'Results of {date}, reopened. To listen to detections or compare, choose the same recordings and press Analyse: analysed recordings are skipped.':
+    'Resultados del {date}, abiertos de nuevo. Para escuchar detecciones o comparar, elige las mismas grabaciones y pulsa Analizar: las grabaciones ya analizadas se saltan.',
   'Run on {backend}: {w} windows in {s}.': 'Analizado con {backend}: {w} ventanas en {s}.',
   'Saved in the folder': 'Guardado en la carpeta',
   'Download the results (ZIP)': 'Descargar los resultados (ZIP)',
@@ -408,8 +418,10 @@ const ES = {
   '{n} windows of 5 s': '{n} ventanas de 5 s',
   '{n} file cannot be read and will be skipped': '{n} archivo no se puede leer y se saltará',
   '{n} files cannot be read and will be skipped': '{n} archivos no se pueden leer y se saltarán',
-  '{n} file is below 32 kHz: Perch hears nothing above half its sample rate': '{n} archivo está por debajo de 32 kHz: Perch no oye nada por encima de la mitad de su frecuencia de muestreo',
-  '{n} files are below 32 kHz: Perch hears nothing above half their sample rate': '{n} archivos están por debajo de 32 kHz: Perch no oye nada por encima de la mitad de su frecuencia de muestreo',
+  '{n} file is below 32 kHz: it holds no sound above half its sample rate':
+    '{n} archivo está por debajo de 32 kHz: no contiene sonido por encima de la mitad de su frecuencia de muestreo',
+  '{n} files are below 32 kHz: they hold no sound above half their sample rate':
+    '{n} archivos están por debajo de 32 kHz: no contienen sonido por encima de la mitad de su frecuencia de muestreo',
   '{n} file is compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies': '{n} archivo está comprimido con pérdida (MP3, Vorbis u Opus), lo que puede borrar frecuencias altas',
   '{n} files are compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies': '{n} archivos están comprimidos con pérdida (MP3, Vorbis u Opus), lo que puede borrar frecuencias altas',
   '{n} file is shorter than 5 s and is padded with silence': '{n} archivo dura menos de 5 s y se completa con silencio',
@@ -452,11 +464,48 @@ const ES = {
   'Run time': 'Duración',
   'Loading': 'Cargando',
   'Starting Python': 'Iniciando Python',
-  'Downloading Perch 2.0 (409 MB, only the first time)': 'Descargando Perch 2.0 (409 MB, solo la primera vez)',
-  'Downloading class names': 'Descargando los nombres de las clases',
+  'Downloading the model (409 MB, only the first time)': 'Descargando el modelo (409 MB, solo la primera vez)',
+  'Downloading the species names': 'Descargando los nombres de las especies',
   'Checking the graphics card': 'Comprobando la tarjeta gráfica',
   'Preparing the CPU': 'Preparando la CPU',
-  'Perch could not start': 'Perch no pudo arrancar',
+  'The model could not start': 'El modelo no pudo arrancar',
   'Writing the results': 'Escribiendo los resultados',
   'Loading scikit-learn (4.6 MB, only the first time)': 'Cargando scikit-learn (4,6 MB, solo la primera vez)',
+  // Help for species thresholds and for Compare
+  'About species thresholds':
+    'Sobre los umbrales por especie',
+  '<strong>What it is.</strong> The lowest confidence score that a detection of one species needs to be kept.':
+    '<strong>Qué es.</strong> La puntuación de confianza mínima que necesita una detección de una especie para conservarse.',
+  '<strong>Why.</strong> The threshold in Settings is the same for every species, but a score does not mean the same for each. A score of 0.5 can be almost always right for one species and wrong half the time for another.':
+    '<strong>Para qué.</strong> El umbral de los Ajustes es el mismo para todas las especies, pero una puntuación no significa lo mismo en cada una. Una puntuación de 0,5 puede acertar casi siempre en una especie y fallar la mitad de las veces en otra.',
+  '<strong>How.</strong> From your checks, Apus works out how the share of correct detections grows with the score, and finds the score at which it reaches your target. With a target of 0.95, about 95 in 100 detections at the threshold are right, and more of those above it (Wood and Kahl 2024).':
+    '<strong>Cómo.</strong> Con tus revisiones, Apus calcula cómo crece la proporción de detecciones correctas con la puntuación, y busca la puntuación a la que alcanza tu objetivo. Con un objetivo de 0,95, unas 95 de cada 100 detecciones en el umbral son correctas, y más aún por encima de él (Wood y Kahl 2024).',
+  '<strong>What it costs.</strong> A higher threshold also drops correct detections: <em>Correct kept</em> shows how many of yours stay. Your checks tell how often detections are right, not how many calls were missed.':
+    '<strong>Qué cuesta.</strong> Un umbral más alto también descarta detecciones correctas: <em>Correctas conservadas</em> muestra cuántas de las tuyas se mantienen. Tus revisiones dicen con qué frecuencia aciertan las detecciones, no cuántos cantos se perdieron.',
+  'About annotation files':
+    'Sobre los archivos de anotaciones',
+  '<strong>Formats.</strong> Apus reads three kinds of file:':
+    '<strong>Formatos.</strong> Apus lee tres tipos de archivo:',
+  'Audacity labels: start, end and species, separated by tabs.':
+    'Etiquetas de Audacity: inicio, fin y especie, separados por tabuladores.',
+  'Raven selection tables with a <code>Species</code> column.':
+    'Tablas de selección de Raven con una columna <code>Species</code>.',
+  'Any table with a start and an end in seconds and a species, in columns with English names such as <code>start</code>, <code>end</code> and <code>species</code>.':
+    'Cualquier tabla con inicio y fin en segundos y especie, en columnas con nombres en inglés como <code>start</code>, <code>end</code> y <code>species</code>.',
+  "<strong>File names.</strong> Each file's name starts with its recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. Recordings without a file are left out. An empty file means you listened and found nothing.":
+    '<strong>Nombres de archivo.</strong> El nombre de cada archivo empieza por el de su grabación: <code>rec01.txt</code> o <code>rec01.Table.1.selections.txt</code> para <code>rec01.wav</code>. Las grabaciones sin archivo quedan fuera. Un archivo vacío significa que escuchaste y no encontraste nada.',
+  '<strong>Species names.</strong> Scientific names or eBird codes. For other names, such as common names, add a synonyms file in Settings.':
+    '<strong>Nombres de especie.</strong> Nombres científicos o códigos de eBird. Para otros nombres, como los comunes, añade un archivo de sinónimos en Ajustes.',
+  '<strong>Annotate everything.</strong> A detection counts as right when its 5 s window overlaps an annotation of the same species in the same recording. Annotate every species you hear, or the detections of the ones you skipped count as false.':
+    '<strong>Anótalo todo.</strong> Una detección cuenta como correcta cuando su ventana de 5 s se solapa con una anotación de la misma especie en la misma grabación. Anota todas las especies que oigas, o las detecciones de las que te saltes contarán como falsas.',
+  "About another model's detections":
+    'Sobre las detecciones de otro modelo',
+  'The result files that another model, such as BirdNET, made for the same recordings. Apus does not run that model: it scores its detections against the same annotations.':
+    'Los archivos de resultados que otro modelo, como BirdNET, hizo para las mismas grabaciones. Apus no ejecuta ese modelo: evalúa sus detecciones frente a las mismas anotaciones.',
+  "The same formats as the annotations, plus a column with each detection's confidence, named <code>confidence</code> or <code>score</code>. BirdNET's CSV results work as they are:":
+    'Los mismos formatos que las anotaciones, más una columna con la confianza de cada detección, llamada <code>confidence</code> o <code>score</code>. Los resultados CSV de BirdNET sirven tal cual:',
+  "One table for all the recordings also works, if a column names each detection's file, as BirdNET's <code>File</code> column does. Without a confidence column, every detection counts as certain.":
+    'También sirve una sola tabla para todas las grabaciones, si una columna indica el archivo de cada detección, como la columna <code>File</code> de BirdNET. Sin columna de confianza, cada detección cuenta como segura.',
+  'Off, they are left out. Either way they are listed in comparison/unmatched_labels.csv. Check it: a typo there needs a synonyms file, and a label that is not a species, such as Noise, counts as missed while this is on.':
+    'Desactivado, quedan fuera. En ambos casos aparecen en comparison/unmatched_labels.csv. Revísalo: una errata ahí necesita un archivo de sinónimos, y una etiqueta que no es una especie, como Noise, cuenta como no detectada mientras esto esté activado.',
 };

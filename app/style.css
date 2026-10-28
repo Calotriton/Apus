@@ -318,6 +318,11 @@ td.species { font-style: italic; }
 .help-text { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--ink);
              font-size: 0.86rem; line-height: 1.5; }
 .file-field .help-text { grid-column: 1 / -1; }
+.help-text > * + * { margin-top: 8px; }
+.help-text ul { margin-bottom: 0; padding-left: 20px; }
+.help-text .example { overflow-x: auto; margin-bottom: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm);
+                      background: var(--surface); font-size: 0.8rem; line-height: 1.5; }
+.lede-row { display: flex; align-items: flex-start; gap: 12px; }
 .switch-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .switch-row .switch { flex: 1; }
 .check-box { display: grid; gap: 6px; margin: 0 12px; padding: 12px 16px; border-radius: 12px; background: var(--surface-2); }
