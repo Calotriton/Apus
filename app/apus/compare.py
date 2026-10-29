@@ -1,7 +1,9 @@
 """The notebook's §8: Perch (and optionally another model) scored against a reference, at the vocalization and
 dataset levels of Funosas et al. (2026, Ecological Indicators 182:114550). The functions are the notebook's;
 what it prints or displays is returned to the page instead."""
+import io
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +19,21 @@ COLUMN_NAMES = {   # possible column names (lower case) for each role, most spec
     "confidence": ["confidence", "score"],
     "file": ["file", "begin file", "begin path", "filename", "recording", "path"],
 }
+# The page's first guess of each column, when the user picks the columns: the notebook's names and more
+GUESS = {
+    "start": COLUMN_NAMES["start"] + ["start time (s)", "start time", "begin time", "onset", "inicio (s)", "inicio",
+                                      "comienzo", "tiempo inicial"],
+    "end": COLUMN_NAMES["end"] + ["end time", "offset", "fin (s)", "fin", "final", "tiempo final"],
+    "species": COLUMN_NAMES["species"] + ["scientific_name", "taxon", "especie", "especies", "nombre científico",
+                                          "etiqueta"],
+    "confidence": COLUMN_NAMES["confidence"] + ["probability", "confianza", "probabilidad"],
+    "file": COLUMN_NAMES["file"] + ["file name", "audio file", "sound file", "archivo", "fichero", "grabación",
+                                    "grabacion"],
+}
+EXCEL = {".xlsx", ".xlsm", ".xls", ".ods"}
+TABLES = {".txt", ".csv", ".tsv"} | EXCEL                   # what the page takes when the user picks the columns
+AUDACITY = ["Start (s)", "End (s)", "Label"]                 # the columns of a label file, which has no header
+CLOCK = re.compile(r"(?:(\d+) days? )?(\d+):(\d+(?:\.\d*)?)(?::(\d+(?:\.\d*)?))?")   # m:ss, h:mm:ss, Excel times
 
 
 def is_number(text):
@@ -59,14 +76,87 @@ def read_events(path):
     return events.dropna(subset=["start_s", "end_s"])
 
 
-def load_events(run, root, what, say):
-    """Every events file under root, matched to the recordings -> (events, recordings that have a file)."""
+# ── Tables whose columns the user picks in the page (any CSV, text or Excel file) ──────────────────────────
+def read_any(path, sheet=None):
+    """Any annotation or results table, as text cells -> (table, sheet names). A label file (Audacity), which
+    has no header, gets the columns Start (s), End (s) and Label. Excel files need python-calamine."""
+    path = Path(path)
+    if path.suffix.lower() in EXCEL:
+        with pd.ExcelFile(path, engine="calamine") as book:
+            sheets = [str(s) for s in book.sheet_names]
+            table = pd.read_excel(book, sheet_name=sheet if sheet in sheets else 0, dtype=str)
+    else:
+        raw = path.read_bytes()
+        try:
+            text = raw.decode("utf-8-sig")                          # Excel's UTF-8 CSV starts with a BOM
+        except UnicodeDecodeError:
+            text = raw.decode("cp1252", errors="replace")           # Excel's CSV in Western European languages
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        sheets = []
+        first = lines[0].split("\t") if lines else []
+        if not lines or (len(first) >= 3 and all(is_number(x) or x.strip().upper() == "NA" for x in first[:2])):
+            rows = [(r + ["", "", ""])[:3] for r in (ln.split("\t") for ln in lines if not ln.startswith("\\"))]
+            table = pd.DataFrame(rows, columns=AUDACITY, dtype=str)
+        else:
+            sep = "\t" if "\t" in lines[0] else (";" if lines[0].count(";") > lines[0].count(",") else ",")
+            table = pd.read_csv(io.StringIO(text), sep=sep, dtype=str)
+    table.columns = [str(c).strip() for c in table.columns]
+    return table, sheets
+
+
+def preview(path, sheet=None):
+    """What the page shows to pick the columns: the names, the first rows, the sheets and a first guess."""
+    table, sheets = read_any(path, sheet)
+    lower = {c.lower(): c for c in reversed(table.columns)}              # the first of two equal names wins
+    guess = {role: next((lower[n] for n in names if n in lower), None) for role, names in GUESS.items()}
+    return json.dumps({"columns": list(table.columns), "rows": table.head(5).fillna("").to_numpy().tolist(),
+                       "n_rows": len(table), "sheets": sheets, "sheet": sheet if sheet in sheets else
+                       (sheets[0] if sheets else None), "guess": guess})
+
+
+def seconds(values):
+    """Times in seconds from text: 12.5, 12,5, 1:02.5 (minutes) or 0:01:02.5 (hours), as Excel shows them."""
+    text = values.astype("string").str.strip()
+    plain = pd.to_numeric(text.str.replace(",", ".", regex=False), errors="coerce")
+
+    def clock(t):
+        m = CLOCK.fullmatch(t) if isinstance(t, str) else None
+        if not m:
+            return np.nan
+        days, a, b, c = m.groups()
+        whole = float(days or 0) * 86400
+        return whole + (float(a) * 60 + float(b) if c is None else float(a) * 3600 + float(b) * 60 + float(c))
+    return plain.astype(float).fillna(pd.Series([clock(t) for t in text.astype(object)], index=text.index))
+
+
+def mapped_events(path, columns):
+    """One file's events from the columns the user picked (`columns`: start, end, species, and optionally
+    confidence, file and sheet) -> table of start_s, end_s, label, confidence, file_hint; None if the file
+    lacks one of those columns. Rows without a time or a species are kept: they still say that a recording
+    was annotated, and load_events drops them after counting it."""
+    table, _ = read_any(path, columns.get("sheet"))
+    chosen = {role: columns.get(role) for role in ["start", "end", "species", "confidence", "file"]}
+    if any(c and c not in table.columns for c in chosen.values()) or not all(chosen[r] for r in ["start", "end", "species"]):
+        return None
+    if "View" in table.columns and table["View"].str.startswith("Spectrogram", na=False).any():
+        table = table[table["View"].str.startswith("Spectrogram", na=False)]   # Raven: one row per view
+    label = table[chosen["species"]].str.strip()
+    return pd.DataFrame({"start_s": seconds(table[chosen["start"]]), "end_s": seconds(table[chosen["end"]]),
+                         "label": label.where(label != ""),
+                         "confidence": (pd.to_numeric(table[chosen["confidence"]].str.replace(",", ".", regex=False),
+                                                      errors="coerce") if chosen["confidence"] else np.nan),
+                         "file_hint": table[chosen["file"]] if chosen["file"] else None})
+
+
+def load_events(run, root, what, say, columns=None):
+    """Every events file under root, matched to the recordings -> (events, recordings that have a file or a
+    row). `columns`: the columns the user picked in the page; None reads the formats the notebook reads."""
     root = Path(root)
     if not root.exists():
         raise ApusError(f"{what}: not found: {root.name}")
     frames, covered, not_tables, no_recording = [], set(), [], []
-    for path in (walk_files(root, {".txt", ".csv"}) if root.is_dir() else [root]):
-        events = read_events(path)
+    for path in (walk_files(root, {".txt", ".csv"} if columns is None else TABLES) if root.is_dir() else [root]):
+        events = read_events(path) if columns is None else mapped_events(path, columns)
         if events is None:
             not_tables.append(path.name)
             continue
@@ -79,13 +169,16 @@ def load_events(run, root, what, say):
         elif events["file"].isna().all():
             no_recording.append(path.name)
         covered |= set(events["file"].dropna())
+        if columns is not None:                     # a row that only names its recording: annotated, nothing heard
+            events = events.dropna(subset=["start_s", "end_s", "label"])
         frames.append(events.dropna(subset=["file"]))
     events = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["start_s", "end_s", "label", "confidence", "file"])
     events["species"] = events["label"].map(run.names.to_perch)
     events["dataset"] = events["file"].map(dict(zip(run.recordings["file"], run.recordings["dataset"])))
     say(f"{what}: {len(events)} event(s) in {len(covered)} recording(s) from {root.name}")
     if not_tables:
-        say(f"  skipped {len(not_tables)} file(s) without start/end/species columns, e.g. {not_tables[0]}")
+        say(f"  skipped {len(not_tables)} file(s) without " +
+            ("the chosen columns" if columns is not None else "start/end/species columns") + f", e.g. {not_tables[0]}")
     if no_recording:
         say(f"  ⚠ {len(no_recording)} file(s) match no recording, e.g. {no_recording[0]}")
     return events.drop(columns="file_hint", errors="ignore"), covered
@@ -149,8 +242,12 @@ def sweep(dets, refs, thresholds):
     return pd.DataFrame(rows)
 
 
-def compare(run, reference_dir, other_dir=None, other_name="BirdNET", count_unmatched_as_missed=True):
-    """The notebook's §8 cell on a finished Run. Writes OUTPUT_DIR/comparison/ and returns what the page shows."""
+def compare(run, reference_dir, other_dir=None, other_name="BirdNET", count_unmatched_as_missed=True,
+            reference_columns=None, other_columns=None, annotated="table"):
+    """The notebook's §8 cell on a finished Run. Writes OUTPUT_DIR/comparison/ and returns what the page shows.
+    The page adds: the columns the user picked in each table (None: the formats the notebook reads), and which
+    recordings were annotated: those with an annotation file or row ('table', the notebook's rule) or every
+    recording analysed ('all')."""
     said = []
     say = said.append
     threshold, top_k = run.s["threshold"], run.s["top_k"]
@@ -159,8 +256,11 @@ def compare(run, reference_dir, other_dir=None, other_name="BirdNET", count_unma
     comparison_dir = run.output_dir / "comparison"
     recordings, listed = run.recordings, run.listed
 
-    reference, ref_files = load_events(run, reference_dir, "Reference", say)
+    reference, ref_files = load_events(run, reference_dir, "Reference", say, reference_columns)
     analysed = set(run.predictions["file"])         # every analysed recording, even if the list removed all its predictions
+    if annotated == "all":
+        say(f"  Every analysed recording counts as annotated: {len(analysed - ref_files)} without annotations count as silent.")
+        ref_files = ref_files | analysed
     scored = ref_files & analysed
     if ref_files - analysed:
         say(f"  {len(ref_files - analysed)} reference recording(s) were not analysed by Perch and are left out.")
@@ -175,7 +275,7 @@ def compare(run, reference_dir, other_dir=None, other_name="BirdNET", count_unma
 
     models = {"Perch": listed[listed["file"].isin(scored)].reset_index(drop=True)}
     if other_dir is not None:
-        other, other_files = load_events(run, other_dir, other_name, say)
+        other, other_files = load_events(run, other_dir, other_name, say, other_columns)
         other = other[other["file"].isin(scored)]
         if scored - other_files:
             say(f"  {len(scored - other_files)} scored recording(s) have no {other_name} file (counted as no detections).")

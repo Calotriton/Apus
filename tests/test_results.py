@@ -1,8 +1,10 @@
 """After a run: reopening, checking detections, §9 thresholds, §8 comparison, times from file names and the
 recordings check. §8 and §9 are compared with the notebook's own cells (APUS_NOTEBOOK: the path of
 perch_all_in_one.ipynb or chirpid_perch.ipynb); those tests are skipped without it."""
+import importlib.util
 import json
 import os
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -13,7 +15,7 @@ import pytest
 import soundfile as sf
 
 from apus.audio import Recording, inspect, spectrogram
-from apus.compare import compare
+from apus.compare import compare, preview, seconds
 from apus.project import COLUMNS, safe_name, walk_files, AUDIO_EXTS
 from apus.results import Results, file_time
 from drive import drive
@@ -249,6 +251,88 @@ def test_one_annotation_file_instead_of_a_folder(project):
     page = json.loads(compare(run, ref / "rec3.txt"))
     assert "Reference: 2 event(s) in 1 recording(s) from rec3.txt" in page["messages"]
     assert page["summary"]
+
+
+# ── §8 with the columns picked in the page ───────────────────────────────────────────────────────────────
+def test_times_in_seconds_or_on_a_clock():
+    got = seconds(pd.Series(["12.5", "12,5", "1:02.5", "0:01:02.5", "0 days 00:01:02.500000", "", None, "x"]))
+    assert np.allclose(got[:5], [12.5, 12.5, 62.5, 62.5, 62.5]) and got[5:].isna().all()
+
+
+def test_picked_columns_give_the_notebooks_result(project):
+    run, _ = finished_run(project)
+    ref, _ = references(project)
+    raven = project / "raven_only"
+    raven.mkdir()
+    for name in ["B_rec3.Table.1.selections.txt", "rec3.txt"]:
+        (raven / name).write_bytes((ref / name).read_bytes())
+    auto = json.loads(compare(run, raven))
+    files = {p.name: p.read_bytes() for p in (run.output_dir / "comparison").glob("*.csv")}
+    cols = json.loads(preview(raven / "rec3.txt"))["guess"]
+    assert cols == {"start": "Begin Time (s)", "end": "End Time (s)", "species": "Species", "confidence": None, "file": None}
+    picked = json.loads(compare(run, raven, reference_columns=cols))
+    assert picked["summary"] == auto["summary"]
+    for name, data in files.items():
+        assert (run.output_dir / "comparison" / name).read_bytes() == data, name
+
+
+def test_one_spanish_table_for_every_recording(project):
+    run, _ = finished_run(project)
+    table = project / "anotaciones.csv"
+    table.write_text("Grabación;Inicio;Fin;Especie\nrec1.wav;0,5;3;Turdus merula\nrec3.wav;0:01;0:04;Erithacus rubecula\n"
+                     "rec2.wav;;;\n", encoding="utf-8-sig")                       # rec2: listened to, nothing heard
+    view = json.loads(preview(table))
+    assert view["guess"] == {"start": "Inicio", "end": "Fin", "species": "Especie", "confidence": None, "file": "Grabación"}
+    assert view["n_rows"] == 3 and view["rows"][1] == ["rec3.wav", "0:01", "0:04", "Erithacus rubecula"]
+    page = json.loads(compare(run, table, reference_columns=view["guess"]))
+    assert "Reference: 2 event(s) in 3 recording(s) from anotaciones.csv" in page["messages"]
+    table.write_text("Grabación;Inicio;Fin;Especie\nrec1.wav;0,5;3;Turdus merula\n", encoding="cp1252")
+    assert json.loads(preview(table))["guess"]["file"] == "Grabación"                 # Excel's own CSV encoding
+    table_only = json.loads(compare(run, table, reference_columns=view["guess"]))
+    every = json.loads(compare(run, table, reference_columns=view["guess"], annotated="all"))
+    assert any("Scored: 1 recording(s)" in m for m in table_only["messages"])
+    assert any("Scored: 3 recording(s)" in m for m in every["messages"])
+    assert any("2 without annotations count as silent" in m for m in every["messages"])
+
+
+def xlsx(path, rows, sheet="Anotaciones"):
+    """A minimal Excel workbook (inline strings and numbers), made without an Excel writer."""
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    pkg = "http://schemas.openxmlformats.org/package/2006/relationships"
+    cell = lambda ref, v: (f'<c r="{ref}" t="inlineStr"><is><t>{v}</t></is></c>' if isinstance(v, str)  # noqa: E731
+                           else f'<c r="{ref}"><v>{v}</v></c>')
+    data = "".join(f'<row r="{i + 1}">' + "".join(cell(f"{chr(65 + j)}{i + 1}", v) for j, v in enumerate(r)) + "</row>"
+                   for i, r in enumerate(rows))
+    ct = "application/vnd.openxmlformats-officedocument.spreadsheetml"
+    files = {
+        "[Content_Types].xml": '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            f'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            f'<Default Extension="xml" ContentType="application/xml"/>'
+            f'<Override PartName="/xl/workbook.xml" ContentType="{ct}.sheet.main+xml"/>'
+            f'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="{ct}.worksheet+xml"/></Types>',
+        "_rels/.rels": f'<Relationships xmlns="{pkg}"><Relationship Id="rId1" Type="{rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+        "xl/workbook.xml": f'<workbook {ns} xmlns:r="{rel}"><sheets><sheet name="{sheet}" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        "xl/_rels/workbook.xml.rels": f'<Relationships xmlns="{pkg}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+        "xl/worksheets/sheet1.xml": f"<worksheet {ns}><sheetData>{data}</sheetData></worksheet>",
+    }
+    with zipfile.ZipFile(path, "w") as z:
+        for name, text in files.items():
+            z.writestr(name, '<?xml version="1.0" encoding="UTF-8"?>' + text)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("python_calamine") is None, reason="needs python-calamine")
+def test_an_excel_table_with_another_models_detections(project):
+    run, _ = finished_run(project)
+    ref, _ = references(project)
+    book = project / "otro.xlsx"
+    xlsx(book, [["Archivo", "Inicio", "Fin", "Especie", "Confianza"], ["rec1.wav", 0, 3, "Turdus merula", 0.81],
+                ["rec3.wav", 1.5, 4, "Erithacus rubecula", 0.7]])
+    view = json.loads(preview(book))
+    assert view["sheets"] == ["Anotaciones"] and view["guess"]["confidence"] == "Confianza"
+    page = json.loads(compare(run, ref, book, "Mine", other_columns={**view["guess"], "sheet": view["sheet"]}))
+    assert "Mine: 2 event(s) in 2 recording(s) from otro.xlsx" in page["messages"]
+    assert {r["model"] for r in page["summary"]} == {"Perch", "Mine"}
 
 
 # ── Times from file names ─────────────────────────────────────────────────────────────────────────────────

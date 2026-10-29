@@ -99,6 +99,11 @@ const PY = [
   [/^Reference: (\d+) event\(s\) in (\d+) recording\(s\) from (.+)$/, (m) => `Referencia: ${m[1]} evento(s) en ${m[2]} grabación(es) de ${m[3]}`],
   [/^(.+): (\d+) event\(s\) in (\d+) recording\(s\) from (.+)$/, (m) => `${m[1]}: ${m[2]} evento(s) en ${m[3]} grabación(es) de ${m[4]}`],
   [/^\s*skipped (\d+) file\(s\) without start\/end\/species columns, e\.g\. (.+)$/, (m) => `se omiten ${m[1]} archivo(s) sin columnas de inicio, fin y especie, p. ej. ${m[2]}`],
+  [/^\s*skipped (\d+) file\(s\) without the chosen columns, e\.g\. (.+)$/, (m) => `se omiten ${m[1]} archivo(s) sin las columnas elegidas, p. ej. ${m[2]}`],
+  [/^\s*Every analysed recording counts as annotated: (\d+) without annotations count as silent\.$/,
+   (m) => `Todas las grabaciones analizadas cuentan como anotadas: ${m[1]} sin anotaciones cuentan como silenciosas.`],
+  [/^To cut clips, choose the same recordings and press Analyse: .*$/,
+   () => 'Para cortar fragmentos, elige las mismas grabaciones y pulsa Analizar: las grabaciones ya analizadas se saltan.'],
   [/^\s*⚠ (\d+) file\(s\) match no recording, e\.g\. (.+)$/, (m) => `⚠ ${m[1]} archivo(s) no coinciden con ninguna grabación, p. ej. ${m[2]}`],
   [/^\s*(\d+) reference recording\(s\) were not analysed by Perch and are left out\.$/, (m) => `${m[1]} grabación(es) de referencia no se analizaron con Perch y quedan fuera.`],
   [/^\s*(\d+) scored recording\(s\) have no (.+) file \(counted as no detections\)\.$/, (m) => `${m[1]} grabación(es) evaluadas no tienen archivo de ${m[2]} (cuentan como sin detecciones).`],
@@ -145,8 +150,6 @@ const ES = {
   'Analysing': 'Analizando',
   'Stop': 'Detener',
   'Results appear here': 'Aquí aparecerán los resultados',
-  'After a run: the counts, the most detected species, and tables you can sort. The files (detections, summaries, Raven tables, clips) go to your folder or into a ZIP file.':
-    'Tras un análisis: los recuentos, las especies más detectadas y tablas que puedes ordenar. Los archivos (detecciones, resúmenes, tablas de Raven, fragmentos) van a tu carpeta o a un archivo ZIP.',
   'Results': 'Resultados',
   'Summary': 'Resumen',
   'Check detections': 'Revisar detecciones',
@@ -173,10 +176,7 @@ const ES = {
     'Mide lo bien que las detecciones de Perch 2.0, el modelo que usa Apus, coinciden con tus propias anotaciones: la proporción de detecciones correctas (precisión) y la proporción de sonidos anotados que se encontraron (exhaustividad). Lo hace para vocalizaciones sueltas y para las especies de cada conjunto de datos (Funosas et al. 2026).',
   'Annotations': 'Anotaciones',
   'No folder chosen': 'Ninguna carpeta elegida',
-  'One text or CSV file per recording, giving the start, end and species of each sound you annotated.':
-    'Un archivo de texto o CSV por grabación, con el inicio, el fin y la especie de cada sonido que anotaste.',
   'Drop files or a folder here, or choose them.': 'Suelta aquí archivos o una carpeta, o elígelos.',
-  'There are no text or CSV files there.': 'Ahí no hay archivos de texto ni CSV.',
   'Drop one folder, or one or more files.': 'Suelta una carpeta, o uno o varios archivos.',
   "Another model's detections (optional)": 'Detecciones de otro modelo (opcional)',
   'None': 'Ninguno',
@@ -246,19 +246,6 @@ const ES = {
   'Comma (,)': 'Coma (,)',
   'Semicolon (;), for Excel in many languages': 'Punto y coma (;), para Excel en muchos idiomas',
   'Semicolon files use a decimal comma': 'Los archivos con punto y coma usan coma decimal',
-  'Raven selection tables, one per recording': 'Tablas de selección de Raven, una por grabación',
-  'About Raven tables': 'Sobre las tablas de Raven',
-  'One selection table per recording, to see the detections over the spectrogram in Raven Pro or Raven Lite.':
-    'Una tabla de selección por grabación, para ver las detecciones sobre el espectrograma en Raven Pro o Raven Lite.',
-  'Audio clips of the detections, to listen to': 'Fragmentos de audio de las detecciones, para escucharlas',
-  'About audio clips': 'Sobre los fragmentos de audio',
-  'Cuts the audio of a sample of detections, per species and confidence band, to listen to outside Apus. The Check detections tab offers the same sample.':
-    'Corta el audio de una muestra de detecciones, por especie y franja de confianza, para escucharlas fuera de Apus. La pestaña Revisar detecciones ofrece la misma muestra.',
-  'Clips per confidence band': 'Fragmentos por franja de confianza',
-  'Per species, in each band 0.1–0.2, 0.2–0.3…': 'Por especie, en cada franja 0,1–0,2, 0,2–0,3…',
-  'Seconds added on each side': 'Segundos añadidos a cada lado',
-  'Only these species': 'Solo estas especies',
-  'Leave empty for all, or list them: <code>Turdus merula, Parus major</code>': 'Déjalo vacío para todas, o escríbelas: <code>Turdus merula, Parus major</code>',
   'Tell me when a run ends': 'Avisarme cuando termine un análisis',
   'Advanced': 'Avanzado',
   'Continue a stopped run: skip recordings already analysed in the output': 'Continuar un análisis detenido: saltar las grabaciones ya analizadas en la salida',
@@ -346,7 +333,6 @@ const ES = {
     'Resultados del {date}, abiertos de nuevo. Para escuchar detecciones o comparar, elige las mismas grabaciones y pulsa Analizar: las grabaciones ya analizadas se saltan.',
   'Run on {backend}: {w} windows in {s}.': 'Analizado con {backend}: {w} ventanas en {s}.',
   'Saved in the folder': 'Guardado en la carpeta',
-  'Download the results (ZIP)': 'Descargar los resultados (ZIP)',
   'Loading…': 'Cargando…',
   '{n} checked': '{n} revisadas',
   'No species matches.': 'Ninguna especie coincide.',
@@ -401,8 +387,8 @@ const ES = {
   'Detections per hour of recording: the detections at that hour or date, divided by the hours of audio analysed then. This is calling activity, not the number of animals.':
     'Detecciones por hora de grabación: las detecciones de esa hora o fecha, divididas entre las horas de audio analizadas entonces. Es actividad vocal, no el número de animales.',
   "Written to the output: detection_times.csv, with each detection's time in UTC and in local time.": 'Escrito en la salida: detection_times.csv, con la hora de cada detección en UTC y en hora local.',
-  'Recordings were analysed with Perch 2.0 (van Merriënboer et al. 2025), a classifier of 14,795 classes of animal sounds, run in Apus 0.2.0 (López-de Sancha 2026) with ONNX Runtime Web.':
-    'Las grabaciones se analizaron con Perch 2.0 (van Merriënboer et al. 2025), un clasificador de 14.795 clases de sonidos animales, ejecutado en Apus 0.2.0 (López-de Sancha 2026) con ONNX Runtime Web.',
+  'Recordings were analysed with Perch 2.0 (van Merriënboer et al. 2025), a classifier of 14,795 classes of animal sounds, run in Apus 0.3.0 (López-de Sancha 2026) with ONNX Runtime Web.':
+    'Las grabaciones se analizaron con Perch 2.0 (van Merriënboer et al. 2025), un clasificador de 14.795 clases de sonidos animales, ejecutado en Apus 0.3.0 (López-de Sancha 2026) con ONNX Runtime Web.',
   'Each recording was converted to mono and resampled to 32 kHz with a polyphase filter. It was cut into 5 s windows every {hop} s, and in each window the mean was removed and the peak scaled to 0.25, as in perch-hoplite.':
     'Cada grabación se convirtió a mono y se remuestreó a 32 kHz con un filtro polifásico. Se cortó en ventanas de 5 s cada {hop} s, y en cada ventana se restó la media y se escaló el pico a 0,25, como en perch-hoplite.',
   'In each window the {k} highest-scoring classes were kept, and a class scoring at least {t} counted as a detection.':
@@ -487,28 +473,144 @@ const ES = {
     '<strong>Qué cuesta.</strong> Un umbral más alto también descarta detecciones correctas: <em>Correctas conservadas</em> muestra cuántas de las tuyas se mantienen. Tus revisiones dicen con qué frecuencia aciertan las detecciones, no cuántos cantos se perdieron.',
   'About annotation files':
     'Sobre los archivos de anotaciones',
-  '<strong>Formats.</strong> Apus reads three kinds of file:':
-    '<strong>Formatos.</strong> Apus lee tres tipos de archivo:',
-  'Audacity labels: start, end and species, separated by tabs.':
-    'Etiquetas de Audacity: inicio, fin y especie, separados por tabuladores.',
-  'Raven selection tables with a <code>Species</code> column.':
-    'Tablas de selección de Raven con una columna <code>Species</code>.',
-  'Any table with a start and an end in seconds and a species, in columns with English names such as <code>start</code>, <code>end</code> and <code>species</code>.':
-    'Cualquier tabla con inicio y fin en segundos y especie, en columnas con nombres en inglés como <code>start</code>, <code>end</code> y <code>species</code>.',
-  "<strong>File names.</strong> Each file's name starts with its recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. Recordings without a file are left out. An empty file means you listened and found nothing.":
-    '<strong>Nombres de archivo.</strong> El nombre de cada archivo empieza por el de su grabación: <code>rec01.txt</code> o <code>rec01.Table.1.selections.txt</code> para <code>rec01.wav</code>. Las grabaciones sin archivo quedan fuera. Un archivo vacío significa que escuchaste y no encontraste nada.',
   '<strong>Species names.</strong> Scientific names or eBird codes. For other names, such as common names, add a synonyms file in Settings.':
     '<strong>Nombres de especie.</strong> Nombres científicos o códigos de eBird. Para otros nombres, como los comunes, añade un archivo de sinónimos en Ajustes.',
   '<strong>Annotate everything.</strong> A detection counts as right when its 5 s window overlaps an annotation of the same species in the same recording. Annotate every species you hear, or the detections of the ones you skipped count as false.':
     '<strong>Anótalo todo.</strong> Una detección cuenta como correcta cuando su ventana de 5 s se solapa con una anotación de la misma especie en la misma grabación. Anota todas las especies que oigas, o las detecciones de las que te saltes contarán como falsas.',
   "About another model's detections":
     'Sobre las detecciones de otro modelo',
-  'The result files that another model, such as BirdNET, made for the same recordings. Apus does not run that model: it scores its detections against the same annotations.':
-    'Los archivos de resultados que otro modelo, como BirdNET, hizo para las mismas grabaciones. Apus no ejecuta ese modelo: evalúa sus detecciones frente a las mismas anotaciones.',
-  "The same formats as the annotations, plus a column with each detection's confidence, named <code>confidence</code> or <code>score</code>. BirdNET's CSV results work as they are:":
-    'Los mismos formatos que las anotaciones, más una columna con la confianza de cada detección, llamada <code>confidence</code> o <code>score</code>. Los resultados CSV de BirdNET sirven tal cual:',
-  "One table for all the recordings also works, if a column names each detection's file, as BirdNET's <code>File</code> column does. Without a confidence column, every detection counts as certain.":
-    'También sirve una sola tabla para todas las grabaciones, si una columna indica el archivo de cada detección, como la columna <code>File</code> de BirdNET. Sin columna de confianza, cada detección cuenta como segura.',
   'Off, they are left out. Either way they are listed in comparison/unmatched_labels.csv. Check it: a typo there needs a synonyms file, and a label that is not a species, such as Noise, counts as missed while this is on.':
     'Desactivado, quedan fuera. En ambos casos aparecen en comparison/unmatched_labels.csv. Revísalo: una errata ahí necesita un archivo de sinónimos, y una etiqueta que no es una especie, como Noise, cuenta como no detectada mientras esto esté activado.',
+
+  // Version 0.3: colours, the Download tab, the clips' choices, columns in Compare, the swift's call
+  'Colours': 'Colores',
+  'Apus teal': 'Verde azulado Apus',
+  'Forest': 'Bosque',
+  'Ocean': 'Océano',
+  'Heather': 'Brezo',
+  'Slate': 'Pizarra',
+  'After a run: the counts, the most detected species, and tables you can sort. In the Download tab you choose what to take: detections, summaries, Raven tables, audio clips and more.':
+    'Tras un análisis: los recuentos, las especies más detectadas y tablas que puedes ordenar. En la pestaña Descargar eliges qué llevarte: detecciones, resúmenes, tablas de Raven, fragmentos de audio y más.',
+  'Download': 'Descargar',
+  'Download…': 'Descargar…',
+  'Sample per confidence band': 'Muestra por franja de confianza',
+  'Detections per species in each band of 0.1': 'Detecciones por especie en cada franja de 0,1',
+  'With the call of a common swift, and a notification if the page is out of sight':
+    'Con el grito de un vencejo común, y una notificación si la página no está a la vista',
+  "The swift's call at the end of a run:": 'El grito del vencejo al terminar un análisis:',
+  'one call cut and cleaned of noise.': 'un grito recortado y sin ruido de fondo.',
+
+  'A table of the sounds you annotated, with their species, start and end: CSV, text or Excel. One table for every recording, or one per recording.':
+    'Una tabla de los sonidos que anotaste, con su especie, inicio y fin: CSV, texto o Excel. Una tabla para todas las grabaciones, o una por grabación.',
+  '<strong>Columns.</strong> Once you choose the files, Apus shows their first rows and asks which column holds the species, the start and the end of each sound, and the recording. It guesses from the column names, in English or Spanish. Audacity labels, Raven selection tables and Excel workbooks work as they are.':
+    '<strong>Columnas.</strong> Al elegir los archivos, Apus muestra sus primeras filas y pregunta qué columna tiene la especie, el inicio y el fin de cada sonido, y la grabación. Las adivina por el nombre de las columnas, en inglés o en español. Las etiquetas de Audacity, las tablas de selección de Raven y los libros de Excel sirven tal cual.',
+  '<strong>Times.</strong> In seconds from the start of the recording, such as <code>12.5</code> or <code>12,5</code>, or as minutes and seconds, such as <code>1:02.5</code>.':
+    '<strong>Tiempos.</strong> En segundos desde el inicio de la grabación, como <code>12.5</code> o <code>12,5</code>, o en minutos y segundos, como <code>1:02.5</code>.',
+  "<strong>Recordings.</strong> Without a recording column, each file is one recording, and its name starts with the recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. A row with a recording but no species, or an empty file, means you listened and heard nothing.":
+    '<strong>Grabaciones.</strong> Sin columna de grabación, cada archivo es una grabación y su nombre empieza por el de la grabación: <code>rec01.txt</code> o <code>rec01.Table.1.selections.txt</code> para <code>rec01.wav</code>. Una fila con la grabación pero sin especie, o un archivo vacío, significa que la escuchaste y no oíste nada.',
+  'The detections that another model, such as BirdNET, made for the same recordings, in a table like the annotations. Apus does not run that model: it scores its detections against the same annotations.':
+    'Las detecciones que otro modelo, como BirdNET, hizo en las mismas grabaciones, en una tabla como la de las anotaciones. Apus no ejecuta ese modelo: evalúa sus detecciones frente a las mismas anotaciones.',
+  "Any table with the species, start and end of each detection, as for the annotations, plus a column with each detection's confidence score. BirdNET's CSV results work as they are:":
+    'Cualquier tabla con la especie, el inicio y el fin de cada detección, como para las anotaciones, más una columna con la puntuación de confianza de cada detección. Los resultados CSV de BirdNET sirven tal cual:',
+  'Without a confidence column, every detection counts as certain.': 'Sin columna de confianza, cada detección cuenta como segura.',
+  'Which recordings did you annotate?': '¿Qué grabaciones anotaste?',
+  'Only those in the annotations': 'Solo las que aparecen en las anotaciones',
+  'Every recording analysed': 'Todas las grabaciones analizadas',
+  'A recording counts as annotated when it has a file or a row in the annotations. Choose every recording only if you listened to all of them: then every detection in a recording without annotations counts as false.':
+    'Una grabación cuenta como anotada si tiene un archivo o una fila en las anotaciones. Elige todas solo si las escuchaste todas: entonces cada detección en una grabación sin anotaciones cuenta como falsa.',
+  'There are no CSV, text or Excel files there.': 'Ahí no hay archivos CSV, de texto ni de Excel.',
+  'Start': 'Inicio',
+  'End': 'Fin',
+  'Recording': 'Grabación',
+  'Confidence score': 'Puntuación de confianza',
+  'None: each file is one recording': 'Ninguna: cada archivo es una grabación',
+  'None: every detection counts as certain': 'Ninguna: cada detección cuenta como segura',
+  'Reading the columns…': 'Leyendo las columnas…',
+  'This table is empty.': 'Esta tabla está vacía.',
+  'Choose the column of the {what}.': 'Elige la columna de {what}.',
+  'The column {c} is chosen twice.': 'La columna {c} está elegida dos veces.',
+  'Sheet': 'Hoja',
+  'Choose a column': 'Elige una columna',
+  'The first rows of {file}, of {n}. Tell Apus which column holds what.': 'Las primeras filas de {file}, de {n}. Indica a Apus qué hay en cada columna.',
+  '{n} row': '{n} fila',
+  '{n} rows': '{n} filas',
+  'Times in seconds from the start of the recording, such as 12.5, or in minutes and seconds, such as 1:02.5.':
+    'Tiempos en segundos desde el inicio de la grabación, como 12,5, o en minutos y segundos, como 1:02,5.',
+  'Loading the Excel reader (0.5 MB, only the first time)': 'Cargando el lector de Excel (0,5 MB, solo la primera vez)',
+
+  'Choose what to take with you. Everything goes into one ZIP file, together with run_settings.json, the settings that produced these results.':
+    'Elige qué llevarte. Todo va en un archivo ZIP, junto con run_settings.json, los ajustes que produjeron estos resultados.',
+  'Files to download': 'Archivos para descargar',
+  'Every detection at the threshold: recording, time in it, species and confidence score.':
+    'Cada detección que alcanza el umbral: grabación, momento, especie y puntuación de confianza.',
+  'Summaries': 'Resúmenes',
+  'Detections per species and per dataset, and the run in a few lines.': 'Detecciones por especie y por conjunto de datos, y el análisis en pocas líneas.',
+  'Top species of every window': 'Especies principales de cada ventana',
+  'The best-scoring species of every 5 s window, above the threshold or not, to apply another threshold later.':
+    'Las especies con mejor puntuación de cada ventana de 5 s, superen o no el umbral, para aplicar otro umbral después.',
+  'Removed by the species list': 'Quitadas por la lista de especies',
+  'Detections of species not on the list of their recording.': 'Detecciones de especies que no están en la lista de su grabación.',
+  'Recordings not analysed': 'Grabaciones no analizadas',
+  'Each one with the reason.': 'Cada una con el motivo.',
+  'Your checks': 'Tus revisiones',
+  'The detections you marked, with your verdict and when.': 'Las detecciones que marcaste, con tu veredicto y cuándo.',
+  'Mark detections in the Check detections tab first.': 'Marca antes detecciones en la pestaña Revisar detecciones.',
+  'Thresholds per species': 'Umbrales por especie',
+  "The thresholds, the share correct per band, and the detections that pass their species' threshold.":
+    'Los umbrales, la proporción de correctas por franja y las detecciones que superan el umbral de su especie.',
+  'Fit thresholds in the Thresholds tab first.': 'Ajusta antes los umbrales en la pestaña Umbrales.',
+  'Comparison with your annotations': 'Comparación con tus anotaciones',
+  'Precision and recall, and the false detections and missed sounds of each model.':
+    'Precisión y exhaustividad, y las detecciones falsas y los sonidos no detectados de cada modelo.',
+  'Compare with your annotations in the Compare tab first.': 'Compara antes con tus anotaciones en la pestaña Comparar.',
+  'Detection times': 'Horas de las detecciones',
+  "Each detection's date and time, in UTC and in local time.": 'La fecha y la hora de cada detección, en UTC y en hora local.',
+  'Read the times in the Activity tab first.': 'Lee antes las horas en la pestaña Actividad.',
+  'Methods paragraph': 'Párrafo de métodos',
+  'The paragraph and references of the Methods tab.': 'El párrafo y las referencias de la pestaña Métodos.',
+  'Other files in the output': 'Otros archivos de la salida',
+  'Files Apus did not make in this run, such as clips and Raven tables from earlier versions.':
+    'Archivos que Apus no hizo en este análisis, como fragmentos y tablas de Raven de versiones anteriores.',
+  'Raven selection tables': 'Tablas de selección de Raven',
+  'One table per recording with detections, to see them over the spectrogram in Raven Pro or Raven Lite.':
+    'Una tabla por grabación con detecciones, para verlas sobre el espectrograma en Raven Pro o Raven Lite.',
+  'Audio clips of detections': 'Fragmentos de audio de las detecciones',
+  'A WAV file for each detection you choose below, in a folder per species, listed in clips.csv.':
+    'Un archivo WAV por cada detección que elijas abajo, en una carpeta por especie, con la lista en clips.csv.',
+  'To cut clips, choose the same recordings and press Analyse: analysed recordings are skipped.':
+    'Para cortar fragmentos, elige las mismas grabaciones y pulsa Analizar: las grabaciones ya analizadas se saltan.',
+  '{n} files, about {x}': '{n} archivos, unos {x}',
+  'Download ZIP': 'Descargar ZIP',
+  'About which detections': 'Sobre qué detecciones',
+  "A sample spreads the clips over the whole range of scores, weak and strong, which is what checking detections needs. Every detection can mean thousands of clips. Checked detections go into folders named correct, incorrect and unsure inside each species' folder, the layout the Thresholds tab reads.":
+    'Una muestra reparte los fragmentos por todo el rango de puntuaciones, débiles y fuertes, que es lo que necesita revisar detecciones. Todas las detecciones pueden ser miles de fragmentos. Las revisadas van en carpetas llamadas correct, incorrect y unsure dentro de la carpeta de cada especie, la estructura que lee la pestaña Umbrales.',
+  'A random sample in each confidence band': 'Una muestra al azar en cada franja de confianza',
+  'Every detection': 'Todas las detecciones',
+  'Only the detections you checked, marked as:': 'Solo las detecciones que revisaste, marcadas como:',
+  'Select all': 'Marcar todas',
+  'Clear': 'Desmarcar todas',
+  'Only the species detected in this run, with their number of detections.': 'Solo las especies detectadas en este análisis, con su número de detecciones.',
+  'All {n} species': 'Las {n} especies',
+  'No species': 'Ninguna especie',
+  '{k} of {n} species': '{k} de {n} especies',
+  'Clips per band': 'Fragmentos por franja',
+  'Band width': 'Ancho de franja',
+  'Per species, in each band of confidence: 0–{a}, {a}–{b}…': 'Por especie, en cada franja de confianza: 0–{a}, {a}–{b}…',
+  'Seconds of context on each side': 'Segundos de contexto a cada lado',
+  'Sound': 'Sonido',
+  'As the model heard it: mono, 32 kHz': 'Como lo oyó el modelo: mono, 32 kHz',
+  'As recorded: its own channels and sample rate': 'Como se grabó: sus canales y su frecuencia de muestreo',
+  "The model hears only up to 16 kHz. Keep the recording's own sound to see the whole spectrogram in Raven, or for bats and insects.":
+    'El modelo solo oye hasta 16 kHz. Conserva el sonido original para ver todo el espectrograma en Raven, o para murciélagos e insectos.',
+  '{c} clips of {s} species, about {x}': '{c} fragmentos de {s} especies, unos {x}',
+  'None of your checked detections match these choices. Check some in the Check detections tab.':
+    'Ninguna de tus detecciones revisadas encaja con estas opciones. Revisa algunas en la pestaña Revisar detecciones.',
+  'No detection matches these choices.': 'Ninguna detección encaja con estas opciones.',
+  '{n} recordings are missing.': 'Faltan {n} grabaciones.',
+  'Adding the files': 'Añadiendo los archivos',
+  'Making the Raven tables': 'Haciendo las tablas de Raven',
+  'Cutting audio clips': 'Cortando fragmentos de audio',
+  '{d} of {n}': '{d} de {n}',
+  'Downloaded {name} ({x}).': 'Descargado {name} ({x}).',
+  'Cancelled: nothing was downloaded.': 'Cancelado: no se descargó nada.',
 };

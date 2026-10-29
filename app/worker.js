@@ -1,11 +1,13 @@
 // Apus worker: Python (Pyodide) runs the notebook's logic (ADR 0003); ONNX Runtime Web runs Perch 2.0.
-// In:  init, run, stop, reopen, check, species, counts, verdict, clip, calibrate, compare, times, clear
+// In:  init, run, stop, reopen, check, species, counts, verdict, clip, calibrate, preview, compare, times,
+//      inventory, plan, export, clear
 // Out: status, ready, log, progress, confirm-replace, done, stopped, reopened, checked, species, counts, clip,
-//      tool-status, calibrated, compared, times, cleared, error ({message, for: the request that failed, key})
+//      tool-status, calibrated, preview, compared, times, inventory, plan, export-progress, exported,
+//      export-stopped, cleared, error ({message, for: the request that failed, key})
 import { loadPyodide } from 'https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs';
 import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.webgpu.min.mjs';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const LOCAL = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 // The owner's copy of the model on Hugging Face, pinned to the upload's commit (ADR 0005); a local copy
 // while developing
@@ -17,8 +19,13 @@ const FILES = {
   codes: ['perch_v2_ebird_classes.csv', '861aef71b679d8dcf07c0c71375188c46b680bd808c61a539f254dc21319bcc9'],
 };
 const MODEL_ID = `perch_v2.onnx sha256:${FILES.model[1]}`;
-const PY_FILES = ['__init__.py', 'audio.py', 'names.py', 'project.py', 'results.py', 'compare.py', 'selftest.py',
-                  'builtin_synonyms.txt', 'selftest_probs.f32'];
+const PY_FILES = ['__init__.py', 'audio.py', 'names.py', 'project.py', 'results.py', 'compare.py', 'export.py',
+                  'selftest.py', 'builtin_synonyms.txt', 'selftest_probs.f32'];
+const FFLATE = 'https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js';
+const EXCEL = /\.(xlsx|xlsm|xls|ods)$/i;
+// What the Download tab lists from the output: the files at its top, and these folders (not the rest of a
+// folder the user chose, which may hold anything)
+const OUTPUT_FOLDERS = new Set(['thresholds', 'comparison', 'clips', 'raven']);
 const WINDOW = 160000;
 const BATCH = 4;                     // a one-minute recording at a 5 s hop is three full batches
 // The files a reopened result is read from (the large predictions.csv only when it is needed)
@@ -27,7 +34,7 @@ const RESULT_FILES = ['run_settings.json', 'detections.csv', 'species_summary.cs
 
 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
 
-let py, project, helpers, session, backend, classes, stopping = false, sklearn = false;
+let py, project, helpers, session, backend, classes, stopping = false, sklearn = false, calamine = false;
 let lastRun = null;                  // the last Run (Python), kept for listening and comparing until the next run
 let current = null;                  // the results on show: {sink, results (Python), inputDir}
 const post = (message, transfer) => self.postMessage(message, transfer ?? []);
@@ -89,10 +96,11 @@ async function startPython() {
   project = py.pyimport('apus.project');
   // JS arrays arrive in Python as proxies; these turn them into numpy arrays
   const fns = py.runPython(`
+import json
 import numpy as np
-from apus import selftest
+from apus import export, selftest
 from apus.audio import load_clip, spectrogram
-from apus.compare import compare
+from apus.compare import compare, preview
 from apus.project import check_recordings, softmax
 from apus.results import Results
 def add(run, file, w0, logits):
@@ -108,11 +116,16 @@ def clip(path, offset, duration):
     y = load_clip(path, offset, duration)
     data, w, h = spectrogram(y)
     return y.astype(np.float32), data, w, h
-{"add": add, "check": check, "signal": signal, "out_files": out_files, "clip": clip, "compare": compare,
- "check_recordings": check_recordings, "Results": Results}
+def compare_page(run, reference, other, name, count, options):
+    o = json.loads(options)
+    return compare(run, reference, other or None, name, count, o.get("reference"), o.get("other"),
+                   o.get("annotated", "table"))
+{"add": add, "check": check, "signal": signal, "out_files": out_files, "clip": clip, "compare": compare_page,
+ "preview": preview, "check_recordings": check_recordings, "Results": Results, "plan": export.plan,
+ "write_clips": export.write_clips, "raven": export.raven}
 `);
-  helpers = Object.fromEntries(['add', 'check', 'signal', 'out_files', 'clip', 'compare', 'check_recordings', 'Results']
-    .map((k) => [k, fns.get(k)]));
+  helpers = Object.fromEntries(['add', 'check', 'signal', 'out_files', 'clip', 'compare', 'preview', 'check_recordings',
+                                'Results', 'plan', 'write_clips', 'raven'].map((k) => [k, fns.get(k)]));
   fns.destroy();
 }
 
@@ -249,17 +262,7 @@ async function listSink(dir, folder) {
   return paths;
 }
 
-// 'species_folder/clip.wav' for every clip already in the output folder, sorted into sub-folders or not
-async function existingClips(dir) {
-  return (await listSink(dir, 'clips')).map((p) => p.split('/')).filter((p) => p.length >= 3 && p.at(-1).endsWith('.wav'))
-    .map((p) => `${p[1]}/${p.at(-1)}`);
-}
-
 async function copyOut(sink, path) { await writeSink(sink, path, py.FS.readFile(`/out/${path}`)); }
-async function moveOut(sink, path) {                 // from Python's memory to the output, then forget it
-  await copyOut(sink, path);
-  py.FS.unlink(`/out/${path}`);
-}
 async function pushOut(...paths) {                   // files Python has just written, to the output on show
   for (const p of paths) if (exists(`/out/${p}`)) await copyOut(current.sink, p);
 }
@@ -348,15 +351,9 @@ async function run({ files, inputDir, settings, folder, replace }) {
 
   status('Writing the results');
   const result = JSON.parse(r.finish());
-  // The tables stay in Python's memory as well, for checking, thresholds and times; clips do not
+  // The tables stay in Python's memory as well, for checking, thresholds and times. Clips and Raven tables
+  // are made when the Download tab asks for them.
   for (const path of helpers.out_files().toJs()) if (path !== 'predictions.csv') await copyOut(sink, path);
-  if (settings.extract_clips) {
-    let n = 0;
-    for (const path of r.clips(py.toPy(await existingClips(sink.dir)))) {
-      if (path.endsWith('.wav')) await moveOut(sink, path); else await copyOut(sink, path);
-      status(`Cutting audio clips: ${++n}`);
-    }
-  }
   result.messages = r.messages.toJs().slice(shown.length);       // the ones not shown at the start
   result.threshold = settings.threshold;
   result.settings = JSON.parse(new TextDecoder().decode(py.FS.readFile('/out/run_settings.json')));
@@ -466,15 +463,36 @@ async function calibrate({ target, minClips }) {
 }
 
 // ── §8: comparison with annotations or another model ───────────────────────────────────────────────────
-async function compare({ files, reference, other, otherName, countUnmatched }) {
+async function needExcel(files) {                   // python-calamine reads Excel files; loaded the first time
+  if (calamine || !files.some((f) => EXCEL.test(f.path))) return;
+  post({ type: 'tool-status', for: 'compare', text: 'Loading the Excel reader (0.5 MB, only the first time)' });
+  await py.loadPackage(['python-calamine']);
+  calamine = true;
+}
+
+function mountAt(dir, files) {
+  try { py.FS.unmount(dir); } catch { /* not mounted yet */ }
+  py.FS.mkdirTree(dir);
+  py.FS.mount(py.FS.filesystems.WORKERFS, { blobs: files.map((f) => ({ name: f.path, data: f.file })) }, dir);
+}
+
+// The columns of a chosen table (the first one, for a folder), to pick which holds what
+async function preview({ key, files, sheet }) {
+  await needExcel(files);
+  mountAt(`/preview/${key}`, files);
+  const first = files.map((f) => f.path).sort()[0];
+  post({ type: 'preview', key, file: first.split('/').at(-1),
+         data: JSON.parse(helpers.preview(`/preview/${key}/${first}`, sheet || '')) });
+}
+
+async function compare({ files, reference, other, otherName, countUnmatched, options }) {
   needResults();
   if (!lastRun) throw new Error('Comparing needs the recordings: choose them and press Analyse. Recordings already analysed are skipped.');
-  try { py.FS.unmount('/compare'); } catch { /* first comparison */ }
-  py.FS.mkdirTree('/compare');
-  py.FS.mount(py.FS.filesystems.WORKERFS, { blobs: files.map((f) => ({ name: f.path, data: f.file })) }, '/compare');
+  await needExcel(files);
+  mountAt('/compare', files);
   py.runPython('import shutil; shutil.rmtree("/out/comparison", ignore_errors=True)');
-  const data = JSON.parse(helpers.compare(lastRun, `/compare/${reference}`, other ? `/compare/${other}` : null,
-                                          otherName || 'BirdNET', countUnmatched));
+  const data = JSON.parse(helpers.compare(lastRun, `/compare/${reference}`, other ? `/compare/${other}` : '',
+                                          otherName || 'BirdNET', countUnmatched, JSON.stringify(options)));
   await pushOut(...helpers.out_files().toJs().filter((p) => p.startsWith('comparison/')));
   post({ type: 'compared', data });
 }
@@ -492,6 +510,76 @@ async function times({ namesInUtc, offsetMinutes }) {
   post({ type: 'times', data });
 }
 
+// ── Download: what the output holds, and a ZIP of what the user picks ───────────────────────────────────
+const recordingsHere = () => Boolean(current?.inputDir && exists(`/data/${current.inputDir}`));
+
+async function inventory() {
+  needResults();
+  const files = [];
+  async function walk(h, prefix) {
+    for await (const [name, child] of h.entries()) {
+      if (child.kind === 'file') files.push({ path: `${prefix}${name}`, size: (await child.getFile()).size });
+      else if (prefix || OUTPUT_FOLDERS.has(name)) await walk(child, `${prefix}${name}/`);
+    }
+  }
+  await walk(current.sink.dir, '');
+  post({ type: 'inventory', files, recordings: recordingsHere() });
+}
+
+async function plan({ clips }) {
+  needResults();
+  const input = recordingsHere() ? `/data/${current.inputDir}` : '/nonexistent';
+  post({ type: 'plan', data: JSON.parse(helpers.plan(current.results, input, JSON.stringify(clips))) });
+}
+
+// One ZIP, built here so the page stays responsive: the chosen output files, the methods text, and the Raven
+// tables and clips made now (in /tmp/export, each file dropped once it is in the ZIP). Stop cancels it.
+async function exportZip({ include, methods, raven, clips, nClips }) {
+  needResults();
+  if (clips && !recordingsHere()) throw new Error('To cut clips, choose the same recordings and press Analyse: analysed recordings are skipped.');
+  stopping = false;
+  const { Zip, ZipPassThrough, ZipDeflate } = await import(FFLATE);
+  const parts = [];
+  let failure = null;
+  const zip = new Zip((err, chunk) => { if (err) failure = err; else parts.push(chunk); });
+  const add = (path, bytes) => {
+    const name = `apus-results/${path}`;
+    const entry = /\.wav$/i.test(path) ? new ZipPassThrough(name) : new ZipDeflate(name, { level: 6 });
+    zip.add(entry);
+    entry.push(bytes, true);
+  };
+  const total = include.length + (raven ? 1 : 0) + (nClips || 0);
+  let done = 0;
+  const step = (text) => post({ type: 'export-progress', done: ++done, total, text });
+  for (const path of include) {
+    const bytes = await readSink(current.sink.dir, path);
+    if (bytes) add(path, bytes);
+    step('Adding the files');
+  }
+  if (methods) add('methods.txt', new TextEncoder().encode(methods));
+  py.runPython('import shutil; shutil.rmtree("/tmp/export", ignore_errors=True)');
+  const take = (path) => { add(path, py.FS.readFile(`/tmp/export/${path}`)); py.FS.unlink(`/tmp/export/${path}`); };
+  if (raven) {
+    const paths = helpers.raven(current.results, '/tmp/export');
+    for (const path of paths.toJs()) take(path);
+    paths.destroy();
+    step('Making the Raven tables');
+  }
+  if (clips) {
+    const written = helpers.write_clips(current.results, `/data/${current.inputDir}`, JSON.stringify(clips), '/tmp/export');
+    try {
+      for (const path of written) {
+        if (stopping) { zip.terminate(); return post({ type: 'export-stopped' }); }
+        take(path);
+        if (path.endsWith('.wav')) step('Cutting audio clips');
+      }
+    } finally { written.destroy(); }
+  }
+  zip.end();
+  if (failure) throw failure;
+  post({ type: 'exported', blob: new Blob(parts, { type: 'application/zip' }) });
+}
+
 // ── Deleting the results kept in this browser: here, in the queue, so a run asked for next waits for it ──
 async function clear() {
   try { await (await navigator.storage.getDirectory()).removeEntry('apus-results', { recursive: true }); }
@@ -507,7 +595,8 @@ async function clear() {
 }
 
 // One request at a time, in order: Python must not be entered by two of them at once. Stop jumps the queue.
-const requests = { init, run, reopen, check, species, counts, verdict, clip, calibrate, compare, times, clear };
+const requests = { init, run, reopen, check, species, counts, verdict, clip, calibrate, preview, compare, times,
+                   inventory, plan, export: exportZip, clear };
 let queue = Promise.resolve();
 self.onmessage = ({ data }) => {
   if (data.type === 'stop') { stopping = true; return; }

@@ -1,6 +1,6 @@
 [project]
 name = "apus"
-version = "0.2.0"
+version = "0.3.0"
 description = "Run Google's Perch 2.0 on your recordings, in your browser."
 requires-python = ">=3.12"
 # The app's Python (app/apus) runs in Pyodide, which provides its packages. This file only sets up the
@@ -14,6 +14,7 @@ dev = [
     "pandas==3.0.2",
     "soundfile==0.12.1",
     "scikit-learn==1.8.0",          # §9's thresholds; Pyodide loads it only when they are fitted (ADR 0007)
+    "python-calamine==0.6.2",       # Excel tables in Compare; Pyodide loads it only when one is chosen (ADR 0008)
     # Tests only: the reference implementations Apus must reproduce, and the model runtime.
     "librosa==0.11.0",
     "onnxruntime>=1.23",

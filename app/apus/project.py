@@ -66,17 +66,36 @@ def check_recordings(input_dir, hop_s):
     return json.dumps(out)
 
 
-def sample_per_band(detections, per_band, seed=0):
-    """The notebook's §7 choice: for each species and 0.1-wide confidence band, up to per_band detections drawn
-    at random (always the same ones). Returns the chosen index labels, in the order drawn. The same rule picks
-    the clips and the detections offered for checking, so they are the same detections."""
-    bands = np.minimum((detections["confidence"] * 10).astype(int), 9)    # 0.0-0.1 -> 0, ..., 0.9-1.0 -> 9
+def sample_per_band(detections, per_band, seed=0, bands=10):
+    """The notebook's §7 choice: for each species and confidence band (`bands` bands of equal width between 0
+    and 1; the notebook's are 10, each 0.1 wide), up to per_band detections drawn at random (always the same
+    ones). Returns the chosen index labels, in the order drawn. The same rule picks the clips and the
+    detections offered for checking, so they are the same detections."""
+    bands = np.minimum((detections["confidence"] * bands).astype(int), bands - 1)   # 10: 0.0-0.1 -> 0, ... -> 9
     rng = random.Random(seed)
     chosen = []
     for _, group in detections.groupby([detections["species"], bands]):
         rows = list(group.index)
         chosen += rng.sample(rows, per_band) if len(rows) > per_band else rows
     return chosen
+
+
+def write_raven_tables(detections, folder):
+    """The notebook's Raven selection tables: one per recording with detections, at
+    folder/<recording path without its extension>.Perch.selection.table.txt. Returns the paths written."""
+    paths = []
+    for f, group in detections.groupby("file"):
+        raven = pd.DataFrame({"Selection": range(1, len(group) + 1), "View": "Spectrogram 1", "Channel": 1,
+                              "Begin Time (s)": group["start_s"].to_numpy(),
+                              "End Time (s)": group["end_s"].to_numpy(),
+                              "Low Freq (Hz)": 0, "High Freq (Hz)": SAMPLE_RATE // 2,
+                              "Species": group["species"].to_numpy(),
+                              "Confidence": group["confidence"].round(4).to_numpy()})
+        path = Path(folder) / f"{Path(f).with_suffix('')}.Perch.selection.table.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raven.to_csv(path, sep="\t", index=False)
+        paths.append(path)
+    return paths
 
 
 def softmax(logits):
@@ -300,16 +319,7 @@ class Run:
         self.save_table(dataset_summary, out / "dataset_summary.csv")
 
         if s["raven_tables"]:
-            for f, group in detections.groupby("file"):
-                raven = pd.DataFrame({"Selection": range(1, len(group) + 1), "View": "Spectrogram 1", "Channel": 1,
-                                      "Begin Time (s)": group["start_s"].to_numpy(),
-                                      "End Time (s)": group["end_s"].to_numpy(),
-                                      "Low Freq (Hz)": 0, "High Freq (Hz)": SAMPLE_RATE // 2,
-                                      "Species": group["species"].to_numpy(),
-                                      "Confidence": group["confidence"].round(4).to_numpy()})
-                path = out / "raven" / f"{Path(f).with_suffix('')}.Perch.selection.table.txt"
-                path.parent.mkdir(parents=True, exist_ok=True)
-                raven.to_csv(path, sep="\t", index=False)
+            write_raven_tables(detections, out / "raven")
 
         n_recordings = predictions["file"].nunique()
         lines = [f"Perch 2.0 — {n_recordings} recording(s) in {predictions['dataset'].nunique()} dataset(s): "

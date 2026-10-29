@@ -13,8 +13,9 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!-- GitHub Pages cannot send the headers that multi-threaded WebAssembly needs; this service worker adds them -->
 <script src="coi-serviceworker.min.js"></script>
-<!-- The saved day/night choice and language, applied before the page is drawn so they do not flash -->
-<script>try { const t = localStorage.getItem('apus.theme'); if (t) document.documentElement.dataset.theme = t; } catch { }</script>
+<!-- The saved day/night choice and colours, applied before the page is drawn so they do not flash -->
+<script>try { const d = document.documentElement.dataset, t = localStorage.getItem('apus.theme'), p = localStorage.getItem('apus.palette');
+  if (t) d.theme = t; if (p) d.palette = p; } catch { }</script>
 <link rel="stylesheet" href="style.css">
 <script type="module" src="app.js"></script>
 </head>
@@ -30,6 +31,8 @@
   <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.9-.8 1.9-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8h2.1a3.7 3.7 0 0 0 3.7-3.7c0-4-3.8-7.2-8.5-7.2z"/><circle cx="7.6" cy="11.6" r="1" fill="currentColor"/><circle cx="10.3" cy="7.6" r="1" fill="currentColor"/><circle cx="14.9" cy="7.9" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
 </svg>
 
 <header class="top">
@@ -46,6 +49,17 @@
       <span class="pill-bar" aria-hidden="true"><span id="model-bar"></span></span>
     </div>
     <button type="button" class="icon-button lang-button" id="lang" lang="es" aria-label="Español" title="Español">ES</button>
+    <details class="palette-menu" id="palette-menu">
+      <summary class="icon-button" data-i18n-attr="aria-label title" aria-label="Colours" title="Colours"><svg aria-hidden="true"><use href="#i-palette"/></svg></summary>
+      <fieldset class="menu">
+        <legend data-i18n>Colours</legend>
+        <label><input type="radio" name="palette" value="apus"><span class="chip" data-p="apus"></span><span data-i18n>Apus teal</span></label>
+        <label><input type="radio" name="palette" value="forest"><span class="chip" data-p="forest"></span><span data-i18n>Forest</span></label>
+        <label><input type="radio" name="palette" value="ocean"><span class="chip" data-p="ocean"></span><span data-i18n>Ocean</span></label>
+        <label><input type="radio" name="palette" value="heather"><span class="chip" data-p="heather"></span><span data-i18n>Heather</span></label>
+        <label><input type="radio" name="palette" value="slate"><span class="chip" data-p="slate"></span><span data-i18n>Slate</span></label>
+      </fieldset>
+    </details>
     <button type="button" class="icon-button" id="theme" aria-label="Night mode" title="Night mode">
       <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z"/></svg>
       <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
@@ -94,7 +108,7 @@
       <div class="ghost" aria-hidden="true"><span style="--f: 0.92"></span><span style="--f: 0.7"></span><span style="--f: 0.46"></span><span style="--f: 0.3"></span></div>
       <div>
         <h2 id="results-empty-title" data-i18n>Results appear here</h2>
-        <p class="hint" data-i18n>After a run: the counts, the most detected species, and tables you can sort. The files (detections, summaries, Raven tables, clips) go to your folder or into a ZIP file.</p>
+        <p class="hint" data-i18n>After a run: the counts, the most detected species, and tables you can sort. In the Download tab you choose what to take: detections, summaries, Raven tables, audio clips and more.</p>
         <button type="button" class="button small reopen" id="reopen" hidden></button>
       </div>
     </section>
@@ -115,6 +129,7 @@
         <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" tabindex="-1" data-i18n>Compare</button>
         <button type="button" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false" tabindex="-1" data-i18n>Activity</button>
         <button type="button" role="tab" id="tab-methods" aria-controls="panel-methods" aria-selected="false" tabindex="-1" data-i18n>Methods</button>
+        <button type="button" role="tab" id="tab-download" class="tab-download" aria-controls="panel-download" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#i-download"/></svg><span data-i18n>Download</span></button>
       </div>
 
       <div class="panel-body" role="tabpanel" id="panel-summary" aria-labelledby="tab-summary">
@@ -132,6 +147,13 @@
 
       <div class="panel-body" role="tabpanel" id="panel-check" aria-labelledby="tab-check" hidden>
         <p class="lede" data-i18n>Listen to detections and mark each one. For every species, Apus offers a random sample in each confidence band, so your checks cover weak and strong scores alike. They tell you how often a detection is right at each confidence, and the Thresholds tab uses them.</p>
+        <div class="form-row">
+          <div class="field">
+            <label for="check_per_band" data-i18n>Sample per confidence band</label>
+            <input type="number" id="check_per_band" min="1" max="1000" step="1" value="10" aria-describedby="check-band-hint">
+            <small id="check-band-hint" data-i18n>Detections per species in each band of 0.1</small>
+          </div>
+        </div>
         <div class="check-layout">
           <div class="species-picker">
             <label class="sr-only" for="species-search" data-i18n>Find a species</label>
@@ -180,21 +202,19 @@
             <button type="button" class="button small" id="pick-ref-files" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-file"/></svg><span data-i18n>Choose files</span></button>
             <button type="button" class="button small" id="pick-ref-folder" aria-describedby="ref-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
           </div>
-          <small data-i18n>One text or CSV file per recording, giving the start, end and species of each sound you annotated.</small>
+          <small data-i18n>A table of the sounds you annotated, with their species, start and end: CSV, text or Excel. One table for every recording, or one per recording.</small>
           <div class="help-text" id="help-ref" hidden>
-            <p data-i18n-html><strong>Formats.</strong> Apus reads three kinds of file:</p>
-            <ul>
-              <li data-i18n-html>Audacity labels: start, end and species, separated by tabs.</li>
-              <li data-i18n-html>Raven selection tables with a <code>Species</code> column.</li>
-              <li data-i18n-html>Any table with a start and an end in seconds and a species, in columns with English names such as <code>start</code>, <code>end</code> and <code>species</code>.</li>
-            </ul>
-            <pre class="example">start,end,species
-0.5,3.0,Turdus merula
-6.0,9.5,Parus major</pre>
-            <p data-i18n-html><strong>File names.</strong> Each file's name starts with its recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. Recordings without a file are left out. An empty file means you listened and found nothing.</p>
+            <p data-i18n-html><strong>Columns.</strong> Once you choose the files, Apus shows their first rows and asks which column holds the species, the start and the end of each sound, and the recording. It guesses from the column names, in English or Spanish. Audacity labels, Raven selection tables and Excel workbooks work as they are.</p>
+            <pre class="example">recording,start,end,species
+rec01.wav,0.5,3.0,Turdus merula
+rec01.wav,6.0,9.5,Parus major
+rec02.wav,,,</pre>
+            <p data-i18n-html><strong>Times.</strong> In seconds from the start of the recording, such as <code>12.5</code> or <code>12,5</code>, or as minutes and seconds, such as <code>1:02.5</code>.</p>
+            <p data-i18n-html><strong>Recordings.</strong> Without a recording column, each file is one recording, and its name starts with the recording's name: <code>rec01.txt</code> or <code>rec01.Table.1.selections.txt</code> for <code>rec01.wav</code>. A row with a recording but no species, or an empty file, means you listened and heard nothing.</p>
             <p data-i18n-html><strong>Species names.</strong> Scientific names or eBird codes. For other names, such as common names, add a synonyms file in Settings.</p>
             <p data-i18n-html><strong>Annotate everything.</strong> A detection counts as right when its 5 s window overlaps an annotation of the same species in the same recording. Annotate every species you hear, or the detections of the ones you skipped count as false.</p>
           </div>
+          <div class="mapping" id="ref-map" hidden></div>
         </div>
         <div class="file-field stacked drop-field" id="other-field">
           <span class="label label-row" id="other-label"><span data-i18n>Another model's detections (optional)</span><button type="button" class="help" aria-expanded="false" aria-controls="help-other" data-i18n-attr="aria-label" aria-label="About another model's detections">?</button></span>
@@ -204,13 +224,14 @@
             <button type="button" class="button small" id="pick-other-folder" aria-describedby="other-label"><svg aria-hidden="true"><use href="#i-folder"/></svg><span data-i18n>Choose a folder</span></button>
             <button type="button" class="link" id="clear-other" hidden data-i18n>Remove</button>
           </div>
-          <small data-i18n>The result files that another model, such as BirdNET, made for the same recordings. Apus does not run that model: it scores its detections against the same annotations.</small>
+          <small data-i18n>The detections that another model, such as BirdNET, made for the same recordings, in a table like the annotations. Apus does not run that model: it scores its detections against the same annotations.</small>
           <div class="help-text" id="help-other" hidden>
-            <p data-i18n-html>The same formats as the annotations, plus a column with each detection's confidence, named <code>confidence</code> or <code>score</code>. BirdNET's CSV results work as they are:</p>
+            <p data-i18n-html>Any table with the species, start and end of each detection, as for the annotations, plus a column with each detection's confidence score. BirdNET's CSV results work as they are:</p>
             <pre class="example">Start (s),End (s),Scientific name,Common name,Confidence
 0.0,3.0,Turdus merula,Eurasian Blackbird,0.81</pre>
-            <p data-i18n-html>One table for all the recordings also works, if a column names each detection's file, as BirdNET's <code>File</code> column does. Without a confidence column, every detection counts as certain.</p>
+            <p data-i18n-html>Without a confidence column, every detection counts as certain.</p>
           </div>
+          <div class="mapping" id="other-map" hidden></div>
         </div>
         <div class="form-row" id="other-name-row" hidden>
           <div class="field">
@@ -218,13 +239,19 @@
             <input type="text" id="other-model-name" value="BirdNET">
           </div>
         </div>
+        <fieldset class="field choice">
+          <legend data-i18n>Which recordings did you annotate?</legend>
+          <label class="radio"><input type="radio" name="annotated" value="table" checked aria-describedby="annotated-hint"><span data-i18n>Only those in the annotations</span></label>
+          <label class="radio"><input type="radio" name="annotated" value="all" aria-describedby="annotated-hint"><span data-i18n>Every recording analysed</span></label>
+          <small id="annotated-hint" data-i18n>A recording counts as annotated when it has a file or a row in the annotations. Choose every recording only if you listened to all of them: then every detection in a recording without annotations counts as false.</small>
+        </fieldset>
         <div class="field">
           <label class="switch"><input type="checkbox" role="switch" id="count-unmatched" checked aria-describedby="unmatched-hint"><span data-i18n>Count annotations with a name the model does not know as missed</span></label>
           <small id="unmatched-hint" data-i18n>Off, they are left out. Either way they are listed in comparison/unmatched_labels.csv. Check it: a typo there needs a synonyms file, and a label that is not a species, such as Noise, counts as missed while this is on.</small>
         </div>
-        <input type="file" id="ref-files-input" multiple accept=".txt,.csv" hidden>
+        <input type="file" id="ref-files-input" multiple accept=".txt,.csv,.tsv,.xlsx,.xlsm,.xls,.ods" hidden>
         <input type="file" id="ref-folder-input" webkitdirectory hidden>
-        <input type="file" id="other-files-input" multiple accept=".txt,.csv" hidden>
+        <input type="file" id="other-files-input" multiple accept=".txt,.csv,.tsv,.xlsx,.xlsm,.xls,.ods" hidden>
         <input type="file" id="other-folder-input" webkitdirectory hidden>
         <div class="form-row"><button type="button" class="primary" id="cmp-run" disabled><span data-i18n>Compare</span></button></div>
         <p class="hint tool-status" id="cmp-status" aria-live="polite"></p>
@@ -257,6 +284,74 @@
         </div>
         <h3 data-i18n>To cite</h3>
         <ul class="refs" id="refs"></ul>
+      </div>
+
+      <div class="panel-body" role="tabpanel" id="panel-download" aria-labelledby="tab-download" hidden>
+        <p class="lede" data-i18n>Choose what to take with you. Everything goes into one ZIP file, together with run_settings.json, the settings that produced these results.</p>
+        <ul class="dl-list" id="dl-list" data-i18n-attr="aria-label" aria-label="Files to download"></ul>
+        <div class="dl-options sub" id="clip-options" hidden>
+          <fieldset class="field choice">
+            <legend class="label-row"><span data-i18n>Which detections</span><button type="button" class="help" aria-expanded="false" aria-controls="help-clip-which" data-i18n-attr="aria-label" aria-label="About which detections">?</button></legend>
+            <p class="help-text" id="help-clip-which" hidden data-i18n>A sample spreads the clips over the whole range of scores, weak and strong, which is what checking detections needs. Every detection can mean thousands of clips. Checked detections go into folders named correct, incorrect and unsure inside each species' folder, the layout the Thresholds tab reads.</p>
+            <label class="radio"><input type="radio" name="clip-which" value="sample" checked><span data-i18n>A random sample in each confidence band</span></label>
+            <label class="radio"><input type="radio" name="clip-which" value="all"><span data-i18n>Every detection</span></label>
+            <label class="radio"><input type="radio" name="clip-which" value="checked"><span data-i18n>Only the detections you checked, marked as:</span></label>
+            <div class="verdicts" id="clip-verdicts">
+              <label class="check"><input type="checkbox" value="correct" checked><span data-i18n>Correct</span></label>
+              <label class="check"><input type="checkbox" value="incorrect" checked><span data-i18n>Incorrect</span></label>
+              <label class="check"><input type="checkbox" value="unsure"><span data-i18n>Unsure</span></label>
+            </div>
+          </fieldset>
+          <div class="field">
+            <span class="label" id="clip-species-label" data-i18n>Species</span>
+            <details class="multi" id="clip-species">
+              <summary aria-describedby="clip-species-label"><span id="clip-species-text"></span><svg aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+              <div class="multi-pop">
+                <label class="sr-only" for="clip-species-search" data-i18n>Find a species</label>
+                <input type="search" id="clip-species-search" data-i18n-attr="placeholder" placeholder="Find a species" autocomplete="off">
+                <div class="multi-actions">
+                  <button type="button" class="link" id="clip-species-all" data-i18n>Select all</button>
+                  <button type="button" class="link" id="clip-species-none" data-i18n>Clear</button>
+                </div>
+                <ul id="clip-species-list"></ul>
+              </div>
+            </details>
+            <small data-i18n>Only the species detected in this run, with their number of detections.</small>
+          </div>
+          <div class="form-row" id="band-row">
+            <div class="field">
+              <label for="clip-per-band" data-i18n>Clips per band</label>
+              <input type="number" id="clip-per-band" min="1" max="1000" step="1" value="10" aria-describedby="clip-band-hint">
+            </div>
+            <div class="field">
+              <label for="clip-bands" data-i18n>Band width</label>
+              <select id="clip-bands" aria-describedby="clip-band-hint"><option value="20">0.05</option><option value="10" selected>0.1</option><option value="5">0.2</option><option value="4">0.25</option></select>
+            </div>
+            <small class="block" id="clip-band-hint"></small>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="clip-extra" data-i18n>Seconds of context on each side</label>
+              <input type="number" id="clip-extra" min="0" max="10" step="0.5" value="1">
+            </div>
+            <div class="field wide">
+              <label for="clip-audio" data-i18n>Sound</label>
+              <select id="clip-audio" aria-describedby="clip-audio-hint"><option value="model" data-i18n>As the model heard it: mono, 32 kHz</option><option value="recorded" data-i18n>As recorded: its own channels and sample rate</option></select>
+            </div>
+          </div>
+          <small class="block" id="clip-audio-hint" data-i18n>The model hears only up to 16 kHz. Keep the recording's own sound to see the whole spectrogram in Raven, or for bats and insects.</small>
+          <p class="plan" id="clip-plan" aria-live="polite"></p>
+        </div>
+        <div class="dl-bar">
+          <p class="dl-total" id="dl-total" aria-live="polite"></p>
+          <button type="button" class="primary" id="dl-run"><svg aria-hidden="true"><use href="#i-download"/></svg><span data-i18n>Download ZIP</span></button>
+        </div>
+        <div class="dl-progress" id="dl-progress" hidden>
+          <div class="bar" role="progressbar" aria-labelledby="dl-progress-text" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dl-bar"><div id="dl-bar-fill"></div></div>
+          <p id="dl-progress-text"></p>
+          <button type="button" class="button small" id="dl-stop"><svg aria-hidden="true"><use href="#i-stop"/></svg><span data-i18n>Cancel</span></button>
+        </div>
+        <p class="hint tool-status" id="dl-status" aria-live="polite"></p>
       </div>
     </section>
   </main>
@@ -339,28 +434,9 @@
         <select id="csv_separator" aria-describedby="csv-hint"><option value="," data-i18n>Comma (,)</option><option value=";" data-i18n>Semicolon (;), for Excel in many languages</option></select>
         <small id="csv-hint" data-i18n>Semicolon files use a decimal comma</small>
       </div>
-      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="raven_tables"><span data-i18n>Raven selection tables, one per recording</span></label><button type="button" class="help" aria-expanded="false" aria-controls="help-raven" data-i18n-attr="aria-label" aria-label="About Raven tables">?</button></div>
-      <p class="help-text" id="help-raven" hidden data-i18n>One selection table per recording, to see the detections over the spectrogram in Raven Pro or Raven Lite.</p>
-      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="extract_clips"><span data-i18n>Audio clips of the detections, to listen to</span></label><button type="button" class="help" aria-expanded="false" aria-controls="help-clips" data-i18n-attr="aria-label" aria-label="About audio clips">?</button></div>
-      <p class="help-text" id="help-clips" hidden data-i18n>Cuts the audio of a sample of detections, per species and confidence band, to listen to outside Apus. The Check detections tab offers the same sample.</p>
-      <div class="sub" id="clip-options" hidden>
-        <div class="field">
-          <label for="clips_per_band" data-i18n>Clips per confidence band</label>
-          <input type="number" id="clips_per_band" min="1" max="1000" step="1" value="10" aria-describedby="band-hint">
-          <small id="band-hint" data-i18n>Per species, in each band 0.1–0.2, 0.2–0.3…</small>
-        </div>
-        <div class="field">
-          <label for="clip_extra_s" data-i18n>Seconds added on each side</label>
-          <input type="number" id="clip_extra_s" min="0" max="10" step="0.5" value="1">
-        </div>
-        <div class="field">
-          <label for="clip_species" data-i18n>Only these species</label>
-          <input type="text" id="clip_species" aria-describedby="clip-species-hint">
-          <small id="clip-species-hint" data-i18n-html>Leave empty for all, or list them: <code>Turdus merula, Parus major</code></small>
-        </div>
-      </div>
-      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="notify"><span data-i18n>Tell me when a run ends</span></label></div>
-      <small class="block" id="notify-hint" hidden></small>
+      <div class="switch-row"><label class="switch"><input type="checkbox" role="switch" id="notify" aria-describedby="notify-hint"><span data-i18n>Tell me when a run ends</span></label></div>
+      <small class="block" id="notify-hint" data-i18n>With the call of a common swift, and a notification if the page is out of sight</small>
+      <small class="block field-error" id="notify-error" hidden></small>
     </section>
 
     <details class="advanced">
@@ -382,6 +458,7 @@
      <span data-i18n>ONNX conversion by Justin Chu.</span> <span data-i18n>Runs on</span> <a href="https://onnxruntime.ai">ONNX Runtime Web</a> <span data-i18n>and</span> <a href="https://pyodide.org">Pyodide</a>.
      <span data-i18n>Apus is not affiliated with Google.</span></p>
   <p data-i18n>The model (409 MB) downloads once and stays in your browser. Its results match those of Google's original version.</p>
+  <p><span data-i18n>The swift's call at the end of a run:</span> Luis Alvarez Menendez, <a href="https://xeno-canto.org/554033">xeno-canto XC554033</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>, <span data-i18n>one call cut and cleaned of noise.</span></p>
 </footer>
 
 <dialog id="ask" aria-labelledby="ask-text">

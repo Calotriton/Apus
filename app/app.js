@@ -3,12 +3,12 @@ import { applyLang, getLang, num, setLang, t, tn, translatePy } from './i18n.js'
 
 const $ = (id) => document.getElementById(id);
 const AUDIO = /\.(wav|flac|ogg|mp3|m4a|aiff?)$/i;
-const FIELDS = ['threshold', 'hop_s', 'top_k', 'csv_separator', 'raven_tables', 'extract_clips', 'clips_per_band',
-                'clip_extra_s', 'clip_species', 'resume', 'backend', 'notify'];
+const FIELDS = ['threshold', 'hop_s', 'top_k', 'csv_separator', 'check_per_band', 'resume', 'backend', 'notify'];
 const state = { recordings: null, inputDir: null, top: null, list: null, listPath: null, listLabel: null,
                 synonyms: null, folder: null, ready: false, running: false, lastRun: null, backend: null,
                 names: [], built: [], modelSpeed: null, check: null, result: null, chip: ['Loading', null, ''],
-                counts: null, species: null, ref: null, other: null, cal: null, cmp: null, act: null };
+                counts: null, species: null, ref: null, other: null, cal: null, cmp: null, act: null,
+                inventory: null, plan: null, exporting: false };
 const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
 const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage blocked */ } };
 
@@ -16,6 +16,7 @@ const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(va
 const valueOf = (el) => (el.type === 'checkbox' ? el.checked : el.value);
 function loadSettings() {
   const saved = load('apus.settings', {});
+  if (!('check_per_band' in saved) && 'clips_per_band' in saved) saved.check_per_band = saved.clips_per_band;  // before 0.3
   for (const k of FIELDS) {
     if (!(k in saved)) continue;
     if ($(k).type === 'checkbox') $(k).checked = saved[k]; else $(k).value = saved[k];
@@ -39,12 +40,10 @@ function settingsLine() {                            // the key settings, repeat
 }
 loadSettings();
 $('threshold-range').value = $('threshold').value;
-$('clip-options').hidden = !$('extract_clips').checked;
 for (const k of FIELDS) $(k).addEventListener('change', () => { checkTopK(); saveSettings(); settingsLine(); });
 $('threshold-range').addEventListener('input', () => { $('threshold').value = Number($('threshold-range').value).toFixed(2); settingsLine(); });
 $('threshold-range').addEventListener('change', () => $('threshold').dispatchEvent(new Event('change')));
 $('threshold').addEventListener('input', () => { $('threshold-range').value = $('threshold').value; });
-$('extract_clips').addEventListener('change', () => { $('clip-options').hidden = !$('extract_clips').checked; });
 $('backend').addEventListener('change', () => location.reload());
 $('hop_s').addEventListener('change', () => requestCheck());
 
@@ -68,6 +67,23 @@ $('theme').addEventListener('click', () => {
   redrawSpectrograms();
 });
 systemDark.addEventListener('change', () => { labelTheme(); redrawSpectrograms(); });
+
+// Colours: five palettes, each with a day and a night version (style.css); Apus teal unless one is saved
+const PALETTES = ['apus', 'forest', 'ocean', 'heather', 'slate'];
+const menu = $('palette-menu');
+const savedPalette = document.documentElement.dataset.palette;
+menu.querySelector(`input[value="${PALETTES.includes(savedPalette) ? savedPalette : 'apus'}"]`).checked = true;
+menu.addEventListener('change', (e) => {
+  const p = e.target.value;
+  if (p === 'apus') delete document.documentElement.dataset.palette; else document.documentElement.dataset.palette = p;
+  try { if (p === 'apus') localStorage.removeItem('apus.palette'); else localStorage.setItem('apus.palette', p); }
+  catch { /* storage blocked: the choice lasts until the page closes */ }
+  redrawSpectrograms();
+});
+document.addEventListener('click', (e) => { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+menu.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); }
+});
 
 function labelLang() {                               // the button offers the other language, named in it
   const other = getLang() === 'es' ? ['en', 'EN', 'English'] : ['es', 'ES', 'Español'];
@@ -102,6 +118,9 @@ function relabel() {
   outputLabels();
   updateRun();
   utcOffsets();
+  bandHint();
+  renderClipSpecies();
+  if (state.plan) renderPlan();
   if (state.result) renderResults(false);
 }
 
@@ -182,18 +201,26 @@ const handlers = {
     if (shown) { state.result = null; $('results').hidden = true; $('results-empty').hidden = state.running; }
     alertBox('');
   },
-  counts: ({ counts }) => { state.counts = counts; renderSpeciesList(); },
+  counts: ({ counts }) => { state.counts = counts; renderSpeciesList(); renderClipSpecies(); },
   species: ({ data, counts, keepScroll }) => {
     state.counts = counts;
     renderSpeciesList();
+    renderClipSpecies();
     if (keepScroll && state.species?.species === data.species) updateSpecies(data); else renderSpecies(data);
   },
   clip: (data) => gotClip(data),
   'tool-status': ({ for: tool, text }) => { const el = toolStatus[tool]; if (el) $(el).textContent = t(text); },
   calibrated: ({ data }) => { state.cal = data; $('cal-status').textContent = ''; renderCal(); renderMethods(); },
+  preview: ({ key, file, data }) => gotPreview(key, file, data),
   compared: ({ data }) => { state.cmp = data; $('cmp-status').textContent = ''; renderCmp(); renderMethods(); },
   times: ({ data }) => { state.act = data; $('act-status').textContent = ''; renderAct(); },
+  inventory: (data) => { state.inventory = data; renderDownload(); },
+  plan: ({ data }) => { state.plan = data; renderPlan(); },
+  'export-progress': ({ done, total, text }) => exportProgress(done, total, text),
+  exported: ({ blob }) => exported(blob),
+  'export-stopped': () => { endExport(); $('dl-status').textContent = t('Cancelled: nothing was downloaded.'); },
   error: ({ message, for: request, key }) => {
+    if (request === 'export') endExport();
     if (toolStatus[request]) { $(toolStatus[request]).textContent = translatePy(message); return; }
     if (request === 'clip') { clipFailed(key, message); return; }
     if (request === 'check') { state.check = { error: message }; renderCheck(); return; }
@@ -205,7 +232,8 @@ const handlers = {
     if (request === 'run') notify(translatePy(message));
   },
 };
-const toolStatus = { calibrate: 'cal-status', compare: 'cmp-status', times: 'act-status', species: 'cal-status' };
+const toolStatus = { calibrate: 'cal-status', compare: 'cmp-status', preview: 'cmp-status', times: 'act-status',
+                     species: 'cal-status', inventory: 'dl-status', plan: 'clip-plan', export: 'dl-status' };
 
 // A confirmation that names its consequence; resolves true when the user picks `yes`
 function ask(text, yes, destructive = false) {
@@ -516,7 +544,7 @@ function updateRun() {
     : !state.ready ? t('Waiting for the model to load…') : '';
   $('run-hint').hidden = !$('run-hint').textContent;
   $('settings-line').hidden = !$('run-hint').hidden;
-  $('cmp-run').disabled = !state.ref || !state.result;
+  $('cmp-run').disabled = !compareReady() || !state.result;
 }
 
 let wakeLock = null;
@@ -526,13 +554,10 @@ async function start(replace = false) {
     alertBox(t('Apus may not write into the folder {name}. Choose it again.', { name: state.folder.name }));
     return;
   }
-  const clipSpecies = $('clip_species').value.split(',').map((s) => s.trim()).filter(Boolean);
   const settings = {
     threshold: Number($('threshold').value), hop_s: Number($('hop_s').value), top_k: Number($('top_k').value),
-    csv_separator: $('csv_separator').value, raven_tables: $('raven_tables').checked, resume: $('resume').checked,
+    csv_separator: $('csv_separator').value, resume: $('resume').checked,
     species_list: state.listPath, synonyms_file: state.synonyms ? `/data/${state.synonyms.path}` : null,
-    extract_clips: $('extract_clips').checked, clips_per_band: Number($('clips_per_band').value),
-    clip_extra_s: Number($('clip_extra_s').value), clip_species: clipSpecies.length ? clipSpecies : null,
   };
   const files = [...state.recordings, ...(state.list || []), ...(state.synonyms ? [state.synonyms] : [])];
   state.running = true;
@@ -562,26 +587,48 @@ function finish() {
   updateRun();
 }
 const pageTitle = () => t('Apus · Perch 2.0 in your browser');   // during a run the tab shows the progress instead
-$('run').addEventListener('click', () => start(false));
+$('run').addEventListener('click', () => { primeChirp(); start(false); });
 $('stop').addEventListener('click', () => { worker.postMessage({ type: 'stop' }); $('progress-text').textContent = t('Stopping…'); });
-addEventListener('beforeunload', (e) => { if (state.running) e.preventDefault(); });
+addEventListener('beforeunload', (e) => { if (state.running || state.exporting) e.preventDefault(); });
 
-// A system notification when a long run ends while the page is out of sight (asked for in Output)
-$('notify').addEventListener('change', async () => {
-  $('notify-hint').hidden = true;
+// When a run ends (asked for in Output): a common swift's call, and a silent system notification while the
+// page is out of sight. Browsers play sound only after a click on the page, so the sound is readied in one.
+let chirp = null;
+async function primeChirp() {
   if (!$('notify').checked) return;
-  if (!('Notification' in self)) { $('notify').checked = false; $('notify-hint').hidden = false; $('notify-hint').textContent = t('This browser cannot show notifications.'); }
-  else if ((await Notification.requestPermission()) !== 'granted') {
+  try {
+    audioCtx ??= new AudioContext();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    chirp ??= await audioCtx.decodeAudioData(await (await fetch('sounds/apus-apus.wav')).arrayBuffer());
+  } catch { chirp = null; /* no sound here: the notification still comes */ }
+}
+function playChirp() {
+  if (!chirp || !audioCtx) return;
+  const source = audioCtx.createBufferSource();
+  source.buffer = chirp;
+  source.connect(audioCtx.destination);
+  source.start();
+}
+$('notify').addEventListener('change', async () => {
+  $('notify-error').hidden = true;
+  if (!$('notify').checked) return;
+  const problem = !('Notification' in self) ? t('This browser cannot show notifications.')
+    : (await Notification.requestPermission()) !== 'granted' ? t('Notifications are blocked for this page. Allow them in the browser\'s site settings.') : '';
+  if (problem) {
     $('notify').checked = false;
-    $('notify-hint').hidden = false;
-    $('notify-hint').textContent = t('Notifications are blocked for this page. Allow them in the browser\'s site settings.');
+    $('notify-error').hidden = false;
+    $('notify-error').textContent = problem;
+  } else {
+    await primeChirp();
+    playChirp();                                     // what it will sound like
   }
   saveSettings();
 });
 function notify(text) {
-  if (!$('notify').checked || document.visibilityState === 'visible' || !('Notification' in self)
-      || Notification.permission !== 'granted') return;
-  try { new Notification('Apus', { body: text, icon: 'icons/favicon-32.png' }); } catch { /* not allowed here */ }
+  if (!$('notify').checked) return;
+  playChirp();
+  if (document.visibilityState === 'visible' || !('Notification' in self) || Notification.permission !== 'granted') return;
+  try { new Notification('Apus', { body: text, icon: 'icons/favicon-32.png', silent: true }); } catch { /* not allowed here */ }
 }
 
 // ── Results ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -625,7 +672,8 @@ $('chart').addEventListener('click', (e) => { const b = e.target.closest('[data-
 
 function showResults(result, opts) {
   state.result = { result, opts };
-  state.counts = state.species = state.cal = state.cmp = state.act = null;
+  state.counts = state.species = state.cal = state.cmp = state.act = state.inventory = state.plan = null;
+  clipSpecies = null;
   clips.clear();
   renderResults(true);
   $('results').hidden = false;
@@ -664,27 +712,21 @@ function renderResults(first) {
     ['recordings_with_detections', 'With detections'], ['detections', 'Detections'], ['species', 'Species']], false);
   chart(result.species);
   if (first) log([...result.messages, ...result.failed.map((f) => `⚠ Not analysed: ${f.file} (${f.error})`)]);
-  const downloads = $('downloads');
-  downloads.replaceChildren();
-  if (opts.saved === 'folder') {
-    downloads.innerHTML = `<p class="hint">${esc(t('Saved in the folder'))} <strong>${esc(opts.folder?.name ?? '')}</strong></p>`;
-  } else {
-    const button = document.createElement('button');
-    button.className = 'primary';
-    button.innerHTML = `<svg aria-hidden="true"><use href="#i-download"/></svg>${esc(t('Download the results (ZIP)'))}`;
-    button.addEventListener('click', downloadZip);
-    downloads.append(button);
-  }
+  const folder = opts.saved === 'folder';
+  $('downloads').innerHTML = (folder ? `<p class="hint">${esc(t('Saved in the folder'))} <strong>${esc(opts.folder?.name ?? '')}</strong></p>` : '') +
+    `<button type="button" class="button" id="to-download"><svg aria-hidden="true"><use href="#i-download"/></svg>${esc(t('Download…'))}</button>`;
+  $('to-download').addEventListener('click', () => selectTab('download'));
   renderSpeciesList();
   if (state.species) renderSpecies(state.species);
   renderCal();
   renderCmp();
   renderAct();
   renderMethods();
+  renderDownload();
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────────────────────────────────
-const TABS = ['summary', 'check', 'thresholds', 'compare', 'activity', 'methods'];
+const TABS = ['summary', 'check', 'thresholds', 'compare', 'activity', 'methods', 'download'];
 function selectTab(name, focus = true) {
   if (!TABS.includes(name)) name = 'summary';
   for (const tab of TABS) {
@@ -696,6 +738,11 @@ function selectTab(name, focus = true) {
   if (focus) $(`tab-${name}`).focus();
   save('apus.tab', name);
   if (name === 'check' && !state.counts && state.result) worker.postMessage({ type: 'counts' });
+  if (name === 'download' && state.result) {           // what the output holds now, after any tool wrote to it
+    worker.postMessage({ type: 'inventory' });
+    worker.postMessage({ type: 'counts' });
+    requestPlan();
+  }
 }
 for (const tab of TABS) $(`tab-${tab}`).addEventListener('click', () => selectTab(tab, false));
 document.querySelector('.tabs').addEventListener('keydown', (e) => {
@@ -707,7 +754,8 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 });
 
 // ── Check detections ──────────────────────────────────────────────────────────────────────────────────────
-const perBand = () => Number($('clips_per_band').value) || 10;
+const perBand = () => Math.max(1, Math.round(Number($('check_per_band').value))) || 10;
+$('check_per_band').addEventListener('change', () => { if (state.species) openSpecies(state.species.species); });
 function openSpecies(name) {
   selectTab('check', false);
   worker.postMessage({ type: 'species', name, perBand: perBand() });
@@ -857,8 +905,7 @@ function requestClip(li) {
   if (clips.has(key)) { drawClip(li); return; }
   clips.set(key, { pending: true });
   const r = rowData(li);
-  worker.postMessage({ type: 'clip', key, file: r.file, start_s: r.start_s, end_s: r.end_s, species: r.species,
-                       extra: Number($('clip_extra_s').value) || 1 });
+  worker.postMessage({ type: 'clip', key, file: r.file, start_s: r.start_s, end_s: r.end_s, species: r.species, extra: 1 });
 }
 function gotClip(data) {
   clips.set(data.key, data);
@@ -988,16 +1035,85 @@ function renderCal() {
 // ── Compare (§8) ──────────────────────────────────────────────────────────────────────────────────────────
 // The annotations ('ref') and another model's results ('other'): one or more files, or a folder, chosen or dropped.
 // `items` are {file, rel} as for the recordings. `name` is the folder, the one file, or "3 files" (a folder of its own).
-const TABLE = /\.(txt|csv)$/i;
+const TABLE = /\.(txt|csv|tsv|xlsx|xlsm|xls|ods)$/i;
+// The files of a field, under `prefix`, as the worker mounts them
+const asFiles = (prefix, s) => s.items.map(({ file, rel }) =>
+  ({ path: `${prefix}/${s.folder || s.items.length === 1 ? rel : `${s.name}/${rel}`}`, file }));
 function setCompareFiles(key, items, folder) {
   const tables = items.filter(({ file }) => TABLE.test(file.name));
-  if (!tables.length) { $('cmp-status').textContent = t('There are no text or CSV files there.'); return; }
+  if (!tables.length) { $('cmp-status').textContent = t('There are no CSV, text or Excel files there.'); return; }
   $('cmp-status').textContent = '';
   const name = folder ? items[0].rel.split('/')[0]
     : tables.length === 1 ? tables[0].file.name : tn(tables.length, '{n} file', '{n} files');
-  state[key] = { items: tables, folder, name };
+  state[key] = { items: tables, folder, name, preview: null, cols: {} };
   compareNames();
+  requestPreview(key, '');
   updateRun();
+}
+
+// Which column holds what: the page shows the first rows and a guess, the user confirms or changes it
+const ROLES = {
+  ref: [['species', 'Species', true], ['start', 'Start', true], ['end', 'End', true], ['file', 'Recording', false]],
+  other: [['species', 'Species', true], ['start', 'Start', true], ['end', 'End', true], ['confidence', 'Confidence score', false],
+          ['file', 'Recording', false]],
+};
+const NONE = { file: 'None: each file is one recording', confidence: 'None: every detection counts as certain' };
+function requestPreview(key, sheet) {
+  state[key].preview = null;
+  renderMapping(key);
+  worker.postMessage({ type: 'preview', key, files: asFiles(key, state[key]), sheet });
+}
+function gotPreview(key, file, data) {
+  const s = state[key];
+  if (!s) return;
+  const saved = load(`apus.cols.${key}`, {});                // the user's last choice, where the columns match
+  s.preview = { ...data, file };
+  s.cols = { sheet: data.sheet };
+  for (const [role] of ROLES[key]) s.cols[role] = data.columns.includes(saved[role]) ? saved[role] : data.guess[role];
+  renderMapping(key);
+  updateRun();
+}
+function mappingProblem(key) {
+  const s = state[key];
+  if (!s?.preview) return t('Reading the columns…');
+  if (!s.preview.columns.length) return t('This table is empty.');
+  for (const [role, label, required] of ROLES[key]) if (required && !s.cols[role]) return t('Choose the column of the {what}.', { what: t(label).toLowerCase() });
+  const used = ROLES[key].map(([role]) => s.cols[role]).filter(Boolean);
+  const twice = used.find((c, i) => used.indexOf(c) !== i);
+  return twice ? t('The column {c} is chosen twice.', { c: twice }) : '';
+}
+function renderMapping(key) {
+  const s = state[key], box = $(`${key}-map`);
+  box.hidden = !s;
+  if (!s) return;
+  if (!s.preview) { box.innerHTML = `<p class="hint">${esc(t('Reading the columns…'))}</p>`; return; }
+  const p = s.preview, roleOf = {};
+  for (const [role, label] of ROLES[key]) if (s.cols[role]) roleOf[s.cols[role]] = t(label);
+  const sheet = p.sheets.length > 1 ? `<div class="field"><label for="${key}-sheet">${esc(t('Sheet'))}</label><select id="${key}-sheet" data-role="sheet">` +
+    p.sheets.map((n) => `<option ${n === s.cols.sheet ? 'selected' : ''}>${esc(n)}</option>`).join('') + '</select></div>' : '';
+  const selects = ROLES[key].map(([role, label, required]) => `<div class="field"><label for="${key}-col-${role}">${esc(t(label))}` +
+    `${required ? '' : ` <span class="tag">${esc(t('Optional'))}</span>`}</label><select id="${key}-col-${role}" data-role="${role}">` +
+    (required ? (s.cols[role] ? '' : `<option value="" selected>${esc(t('Choose a column'))}</option>`) : `<option value="">${esc(t(NONE[role]))}</option>`) +
+    p.columns.map((c) => `<option ${s.cols[role] === c ? 'selected' : ''}>${esc(c)}</option>`).join('') + '</select></div>').join('');
+  const problem = mappingProblem(key);
+  box.innerHTML = `<p class="hint">${esc(t('The first rows of {file}, of {n}. Tell Apus which column holds what.', { file: p.file, n: tn(p.n_rows, '{n} row', '{n} rows') }))}</p>` +
+    `<div class="table-wrap preview"><table><thead><tr>${p.columns.map((c) => `<th scope="col">${roleOf[c] ? `<span class="role">${esc(roleOf[c])}</span>` : ''}${esc(c)}</th>`).join('')}</tr></thead>` +
+    `<tbody>${p.rows.map((r) => `<tr>${r.map((v, i) => `<td${roleOf[p.columns[i]] ? ' class="mapped"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` +
+    `<div class="map-grid">${sheet}${selects}</div>` +
+    `<p class="hint">${esc(t('Times in seconds from the start of the recording, such as 12.5, or in minutes and seconds, such as 1:02.5.'))}</p>` +
+    (problem ? `<p class="field-error">${esc(problem)}</p>` : '');
+}
+for (const key of ['ref', 'other']) {
+  $(`${key}-map`).addEventListener('change', (e) => {
+    const role = e.target.dataset.role, s = state[key];
+    if (!role || !s) return;
+    if (role === 'sheet') { requestPreview(key, e.target.value); return; }
+    s.cols[role] = e.target.value || null;
+    save(`apus.cols.${key}`, s.cols);
+    renderMapping(key);
+    $(`${key}-col-${role}`).focus();
+    updateRun();
+  });
 }
 function compareNames() {
   for (const key of ['ref', 'other']) {
@@ -1005,6 +1121,7 @@ function compareNames() {
     $(`${key}-name`).textContent = !s ? t('Drop files or a folder here, or choose them.')
       : s.folder ? `${s.name} (${tn(s.items.length, '{n} file', '{n} files')})` : s.name;
     $(`${key}-field`).classList.toggle('set', Boolean(s));
+    renderMapping(key);
   }
   $('clear-other').hidden = !state.other;
   $('other-name-row').hidden = !state.other;
@@ -1034,14 +1151,17 @@ for (const key of ['ref', 'other']) {
     } catch (err) { $('cmp-status').textContent = t(err.message); }
   });
 }
-$('clear-other').addEventListener('click', () => { state.other = null; compareNames(); });
+$('clear-other').addEventListener('click', () => { state.other = null; compareNames(); updateRun(); });
+const compareReady = () => Boolean(state.ref && !mappingProblem('ref') && (!state.other || !mappingProblem('other')));
+for (const r of document.querySelectorAll('input[name="annotated"]')) r.checked = r.value === load('apus.annotated', 'table');
+document.querySelectorAll('input[name="annotated"]').forEach((r) => r.addEventListener('change', () => save('apus.annotated', r.value)));
 $('cmp-run').addEventListener('click', () => {
   $('cmp-status').textContent = t('Comparing…');
-  const as = (prefix, s) => s.items.map(({ file, rel }) =>
-    ({ path: `${prefix}/${s.folder || s.items.length === 1 ? rel : `${s.name}/${rel}`}`, file }));
-  worker.postMessage({ type: 'compare', files: [...as('ref', state.ref), ...(state.other ? as('other', state.other) : [])],
+  worker.postMessage({ type: 'compare', files: [...asFiles('ref', state.ref), ...(state.other ? asFiles('other', state.other) : [])],
                        reference: `ref/${state.ref.name}`, other: state.other ? `other/${state.other.name}` : null,
-                       otherName: $('other-model-name').value.trim() || 'BirdNET', countUnmatched: $('count-unmatched').checked });
+                       otherName: $('other-model-name').value.trim() || 'BirdNET', countUnmatched: $('count-unmatched').checked,
+                       options: { reference: state.ref.cols, other: state.other?.cols ?? null,
+                                  annotated: document.querySelector('input[name="annotated"]:checked').value } });
 });
 const SERIES = ['var(--s1)', 'var(--s2)', 'var(--s3)'];
 function lineChart({ series, xLabel, yLabel, title, marks = [] }) {   // x and y from 0 to 1
@@ -1142,7 +1262,7 @@ function renderAct() {
 
 // ── Methods ───────────────────────────────────────────────────────────────────────────────────────────────
 const REFS = {
-  apus: 'López-de Sancha, A. (2026). Apus: Perch 2.0 in your browser (version 0.2.0). https://github.com/Calotriton/Apus',
+  apus: 'López-de Sancha, A. (2026). Apus: Perch 2.0 in your browser (version 0.3.0). https://github.com/Calotriton/Apus',
   perch: 'van Merriënboer, B., et al. (2025). Perch 2.0: The Bittern Lesson for Bioacoustics. arXiv:2508.04665.',
   wood: 'Wood, C. M., & Kahl, S. (2024). Guidelines for appropriate use of BirdNET scores and other detector outputs. Journal of Ornithology, 165, 777–782. https://doi.org/10.1007/s10336-024-02144-5',
   funosas: 'Funosas, D., et al. (2026). Ecological Indicators, 182, 114550.',
@@ -1154,7 +1274,7 @@ function renderMethods() {
   const run = state.lastRun?.settings ?? {};
   const hop = s.hop_s ?? run.hop_s, topK = s.top_k ?? run.top_k, threshold = result.threshold ?? s.threshold;
   const windows = opts.windows ?? null;
-  const parts = [t('Recordings were analysed with Perch 2.0 (van Merriënboer et al. 2025), a classifier of 14,795 classes of animal sounds, run in Apus 0.2.0 (López-de Sancha 2026) with ONNX Runtime Web.'),
+  const parts = [t('Recordings were analysed with Perch 2.0 (van Merriënboer et al. 2025), a classifier of 14,795 classes of animal sounds, run in Apus 0.3.0 (López-de Sancha 2026) with ONNX Runtime Web.'),
     t('Each recording was converted to mono and resampled to 32 kHz with a polyphase filter. It was cut into 5 s windows every {hop} s, and in each window the mean was removed and the peak scaled to 0.25, as in perch-hoplite.', { hop: num(hop ?? 5) }),
     t('In each window the {k} highest-scoring classes were kept, and a class scoring at least {t} counted as a detection.', { k: topK ?? 10, t: num(threshold ?? 0.1, 2) })];
   if (result.lines.some((l) => l.startsWith('Species list:'))) parts.push(t('Detections of species not on the species list for each recording were removed.'));
@@ -1170,8 +1290,9 @@ function renderMethods() {
   const refs = ['apus', 'perch', ...(state.cal?.thresholds?.length ? ['wood'] : []), ...(state.cmp ? ['funosas'] : [])];
   $('refs').innerHTML = refs.map((k) => `<li>${esc(REFS[k])}</li>`).join('');
 }
+const methodsText = () => `${$('methods-text').textContent}\n\n${[...$('refs').children].map((li) => li.textContent).join('\n')}\n`;
 $('copy-methods').addEventListener('click', async () => {
-  const text = `${$('methods-text').textContent}\n\n${[...$('refs').children].map((li) => li.textContent).join('\n')}`;
+  const text = methodsText();
   try { await navigator.clipboard.writeText(text); $('copy-methods').lastElementChild.textContent = t('Copied'); }
   catch { getSelection().selectAllChildren($('methods-text')); }
   setTimeout(() => { $('copy-methods').lastElementChild.textContent = t('Copy'); }, 2000);
@@ -1183,20 +1304,205 @@ function downloadText(name, text) {
   Object.assign(document.createElement('a'), { href: url, download: name }).click();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
-async function downloadZip() {
-  const { zipSync } = await import('https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js');
-  const files = {};
-  async function walkDir(dir, prefix) {
-    for await (const [name, h] of dir.entries()) {
-      if (h.kind === 'directory') await walkDir(h, `${prefix}${name}/`);
-      else files[`${prefix}${name}`] = new Uint8Array(await (await h.getFile()).arrayBuffer());
-    }
+const bytesText = (n) => (n < 1e3 ? `${num(n)} B` : n < 1e6 ? `${num(n / 1e3, 0)} kB` : n < 1e9 ? `${num(n / 1e6, n < 1e7 ? 1 : 0)} MB` : `${num(n / 1e9, 1)} GB`);
+
+// ── The Download tab: every file the results can give, ticked or not, and one ZIP ────────────────────────
+// `files`/`folder`: what the output holds; `made`: made when downloading; `how`: what to do while it is missing;
+// `onlyIf`: shown only when the output holds it. The clips come last: their choices follow the list.
+const DL = [
+  { id: 'detections', files: ['detections.csv'], on: true, title: 'Detections',
+    text: 'Every detection at the threshold: recording, time in it, species and confidence score.' },
+  { id: 'summaries', files: ['species_summary.csv', 'dataset_summary.csv', 'summary.txt'], on: true, title: 'Summaries',
+    text: 'Detections per species and per dataset, and the run in a few lines.' },
+  { id: 'predictions', files: ['predictions.csv'], on: false, title: 'Top species of every window',
+    text: 'The best-scoring species of every 5 s window, above the threshold or not, to apply another threshold later.' },
+  { id: 'removed', files: ['removed_by_species_list.csv'], on: true, onlyIf: true, title: 'Removed by the species list',
+    text: 'Detections of species not on the list of their recording.' },
+  { id: 'failed', files: ['failed_recordings.csv'], on: true, onlyIf: true, title: 'Recordings not analysed',
+    text: 'Each one with the reason.' },
+  { id: 'checked', files: ['checked_detections.csv'], on: true, title: 'Your checks',
+    text: 'The detections you marked, with your verdict and when.', how: 'Mark detections in the Check detections tab first.' },
+  { id: 'thresholds', folder: 'thresholds/', files: ['detections_species_thresholds.csv'], on: true, title: 'Thresholds per species',
+    text: 'The thresholds, the share correct per band, and the detections that pass their species\' threshold.',
+    how: 'Fit thresholds in the Thresholds tab first.' },
+  { id: 'comparison', folder: 'comparison/', on: true, title: 'Comparison with your annotations',
+    text: 'Precision and recall, and the false detections and missed sounds of each model.',
+    how: 'Compare with your annotations in the Compare tab first.' },
+  { id: 'times', files: ['detection_times.csv'], on: true, title: 'Detection times',
+    text: 'Each detection\'s date and time, in UTC and in local time.', how: 'Read the times in the Activity tab first.' },
+  { id: 'methods', made: 'methods.txt', on: true, title: 'Methods paragraph', text: 'The paragraph and references of the Methods tab.' },
+  { id: 'other', on: false, onlyIf: true, title: 'Other files in the output',
+    text: 'Files Apus did not make in this run, such as clips and Raven tables from earlier versions.' },
+  { id: 'raven', made: 'raven/', on: false, title: 'Raven selection tables',
+    text: 'One table per recording with detections, to see them over the spectrogram in Raven Pro or Raven Lite.' },
+  { id: 'clips', made: 'clips/', on: false, title: 'Audio clips of detections',
+    text: 'A WAV file for each detection you choose below, in a folder per species, listed in clips.csv.',
+    how: 'To cut clips, choose the same recordings and press Analyse: analysed recordings are skipped.' },
+];
+const ALWAYS = 'run_settings.json';
+const dlChoice = load('apus.download', {});
+const ticked = (g) => dlChoice[g.id] ?? g.on;
+
+function dlFiles(g) {                                 // a group's files in the output, as {path, size}
+  const files = state.inventory?.files ?? [];
+  if (g.id === 'other') {
+    const claimed = new Set([ALWAYS, ...DL.flatMap((d) => d.files ?? [])]);
+    return files.filter((f) => !claimed.has(f.path) && !DL.some((d) => d.folder && f.path.startsWith(d.folder)));
   }
-  await walkDir(await (await navigator.storage.getDirectory()).getDirectoryHandle('apus-results'), 'apus-results/');
-  const url = URL.createObjectURL(new Blob([zipSync(files, { level: 0 })], { type: 'application/zip' }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: 'apus-results.zip' });
-  a.click();
+  return files.filter((f) => g.files?.includes(f.path) || (g.folder && f.path.startsWith(g.folder)));
+}
+function dlState() {                                  // per group: its files, size, and whether it can be taken
+  const result = state.result?.result;
+  return DL.map((g) => {
+    const files = dlFiles(g);
+    let size = files.reduce((s, f) => s + f.size, 0), count = files.length, ready = count > 0;
+    if (g.id === 'methods') { ready = true; size = methodsText().length; count = 1; }
+    if (g.id === 'raven') { ready = true; count = result ? sum(result.datasets, 'recordings_with_detections') : 0; size = 150 * sum(result?.species ?? [], 'detections'); }
+    if (g.id === 'clips') { ready = Boolean(state.inventory?.recordings); count = state.plan ? state.plan.clips + 1 : 0; size = state.plan?.bytes ?? 0; }
+    return { g, files, size, count, ready, on: ready && ticked(g), hidden: g.onlyIf && !files.length };
+  });
+}
+function renderDownload() {
+  if (!state.result) return;
+  if (!state.inventory) { $('dl-list').innerHTML = `<li class="hint">${esc(t('Loading…'))}</li>`; return; }
+  const rows = dlState();
+  $('dl-list').innerHTML = rows.filter((r) => !r.hidden).map(({ g, files, size, count, ready, on }) => {
+    const names = g.made ?? (g.folder ? `${g.folder}…` : files.map((f) => f.path).join(', ') || g.files?.join(', '));
+    const sizeText = !ready ? '' : g.id === 'clips' ? (state.plan ? `${t('about {x}', { x: bytesText(size) })}` : '')
+      : g.id === 'raven' ? t('about {x}', { x: bytesText(size) }) : bytesText(size);
+    return `<li class="dl-item${ready ? '' : ' off'}"><label class="check"><input type="checkbox" data-id="${g.id}" ${on ? 'checked' : ''} ${ready ? '' : 'disabled'} aria-describedby="dl-${g.id}-text">` +
+      `<span class="dl-title">${esc(t(g.title))}</span></label><span class="dl-size">${esc(sizeText)}</span>` +
+      `<p class="dl-text" id="dl-${g.id}-text">${esc(ready ? t(g.text) : t(g.how))} <span class="dl-names">${esc(g.id === 'other' ? tn(count, '{n} file', '{n} files') : names)}</span></p></li>`;
+  }).join('');
+  const clips = rows.find((r) => r.g.id === 'clips');
+  $('clip-options').hidden = !clips.on;
+  renderTotal(rows);
+}
+function renderTotal(rows = dlState()) {
+  const chosen = rows.filter((r) => r.on && !r.hidden && !(r.g.id === 'clips' && !state.plan?.clips));
+  const n = chosen.reduce((s, r) => s + r.count, 0) + 1, size = chosen.reduce((s, r) => s + r.size, 0);
+  $('dl-total').textContent = t('{n} files, about {x}', { n: num(n), x: bytesText(size) });
+  $('dl-run').disabled = state.exporting || !state.inventory;
+}
+$('dl-list').addEventListener('change', (e) => {
+  const id = e.target.dataset.id;
+  if (!id) return;
+  dlChoice[id] = e.target.checked;
+  save('apus.download', dlChoice);
+  renderDownload();
+});
+
+// The clips' choices, remembered in this browser (the species only for these results)
+let clipSpecies = null;                               // null: every species detected
+const clipSaved = load('apus.clipOptions', {});
+const clipInputs = { per_band: 'clip-per-band', bands: 'clip-bands', extra_s: 'clip-extra' };
+for (const [k, id] of Object.entries(clipInputs)) if (k in clipSaved) $(id).value = clipSaved[k];
+if (clipSaved.as_recorded) $('clip-audio').value = 'recorded';
+for (const r of document.querySelectorAll('input[name="clip-which"]')) r.checked = r.value === (clipSaved.which ?? 'sample');
+for (const c of $('clip-verdicts').querySelectorAll('input')) if (clipSaved.verdicts) c.checked = clipSaved.verdicts.includes(c.value);
+function clipOptions() {
+  const clamp = (v, lo, hi, d) => (Number.isFinite(Number(v)) && v !== '' ? Math.min(hi, Math.max(lo, Number(v))) : d);
+  return { which: document.querySelector('input[name="clip-which"]:checked').value,
+           verdicts: [...$('clip-verdicts').querySelectorAll('input:checked')].map((c) => c.value),
+           per_band: Math.round(clamp($('clip-per-band').value, 1, 1000, 10)), bands: Number($('clip-bands').value),
+           extra_s: clamp($('clip-extra').value, 0, 10, 1), as_recorded: $('clip-audio').value === 'recorded',
+           species: clipSpecies ? [...clipSpecies] : null };
+}
+function clipControls() {                             // the band settings only for a sample, verdicts only for checks
+  const o = clipOptions();
+  $('band-row').hidden = o.which !== 'sample';
+  for (const c of $('clip-verdicts').querySelectorAll('input')) c.disabled = o.which !== 'checked';
+  const { species, ...kept } = o;
+  save('apus.clipOptions', kept);
+}
+function bandHint() {
+  const w = 1 / Number($('clip-bands').value);
+  $('clip-band-hint').textContent = t('Per species, in each band of confidence: 0–{a}, {a}–{b}…', { a: num(w, 2), b: num(2 * w, 2) });
+}
+let planTimer;
+function requestPlan() {
+  clearTimeout(planTimer);
+  planTimer = setTimeout(() => { if (state.result) worker.postMessage({ type: 'plan', clips: clipOptions() }); }, 200);
+}
+function renderPlan() {
+  const p = state.plan, o = clipOptions();
+  $('clip-plan').textContent = !p ? '' : p.clips ? t('{c} clips of {s} species, about {x}', { c: num(p.clips), s: num(p.species), x: bytesText(p.bytes) })
+    : o.which === 'checked' ? t('None of your checked detections match these choices. Check some in the Check detections tab.')
+      : t('No detection matches these choices.');
+  if (p?.missing?.length && state.inventory?.recordings) $('clip-plan').textContent += ` ${t('{n} recordings are missing.', { n: p.missing.length })}`;
+  renderDownload();
+}
+for (const el of [$('clip-per-band'), $('clip-bands'), $('clip-extra'), $('clip-audio'), $('clip-verdicts'), ...document.querySelectorAll('input[name="clip-which"]')]) {
+  el.addEventListener('change', () => { clipControls(); bandHint(); requestPlan(); });
+}
+clipControls();
+
+// The species: a list with a search box and boxes to tick, of the species detected only
+function renderClipSpecies() {
+  const rows = state.counts ?? [];
+  const q = $('clip-species-search').value.trim().toLowerCase();
+  const shown = rows.filter((r) => r.species.toLowerCase().includes(q));
+  $('clip-species-list').innerHTML = !state.counts ? `<li class="hint">${esc(t('Loading…'))}</li>`
+    : shown.map((r) => `<li><label class="check"><input type="checkbox" value="${esc(r.species)}" ${!clipSpecies || clipSpecies.has(r.species) ? 'checked' : ''}>` +
+      `<span class="sp">${esc(r.species)}</span><span class="n">${num(r.detections)}</span></label></li>`).join('') ||
+      `<li class="hint">${esc(t('No species matches.'))}</li>`;
+  const n = rows.length, k = clipSpecies ? clipSpecies.size : n;
+  $('clip-species-text').textContent = k === n ? t('All {n} species', { n: num(n) }) : k === 0 ? t('No species')
+    : k <= 2 ? [...clipSpecies].join(', ') : t('{k} of {n} species', { k: num(k), n: num(n) });
+}
+$('clip-species-search').addEventListener('input', renderClipSpecies);
+$('clip-species-list').addEventListener('change', (e) => {
+  const all = (state.counts ?? []).map((r) => r.species);
+  clipSpecies ??= new Set(all);
+  if (e.target.checked) clipSpecies.add(e.target.value); else clipSpecies.delete(e.target.value);
+  if (clipSpecies.size === all.length) clipSpecies = null;
+  renderClipSpecies();
+  requestPlan();
+});
+$('clip-species-all').addEventListener('click', () => { clipSpecies = null; renderClipSpecies(); requestPlan(); });
+$('clip-species-none').addEventListener('click', () => { clipSpecies = new Set(); renderClipSpecies(); requestPlan(); });
+const speciesMenu = $('clip-species');
+document.addEventListener('click', (e) => { if (speciesMenu.open && !speciesMenu.contains(e.target)) speciesMenu.open = false; });
+speciesMenu.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && speciesMenu.open) { e.preventDefault(); speciesMenu.open = false; speciesMenu.querySelector('summary').focus(); }
+});
+speciesMenu.addEventListener('toggle', () => { if (speciesMenu.open) $('clip-species-search').focus(); });
+
+// The ZIP, built in the worker; the page shows its progress and can cancel it
+$('dl-run').addEventListener('click', () => {
+  const rows = dlState().filter((r) => r.on && !r.hidden);
+  const take = (id) => rows.some((r) => r.g.id === id);
+  const include = [ALWAYS, ...rows.flatMap((r) => r.files.map((f) => f.path))].filter((p, i, all) => all.indexOf(p) === i &&
+    (p !== ALWAYS || state.inventory.files.some((f) => f.path === ALWAYS)));
+  const clips = take('clips') && state.plan?.clips ? clipOptions() : null;
+  state.exporting = true;
+  $('dl-status').textContent = '';
+  $('dl-progress').hidden = false;
+  $('dl-bar-fill').style.width = '0';
+  $('dl-progress-text').textContent = t('Starting…');
+  renderTotal();
+  worker.postMessage({ type: 'export', include, methods: take('methods') ? methodsText() : '', raven: take('raven'), clips,
+                       nClips: clips ? state.plan.clips : 0 });
+});
+$('dl-stop').addEventListener('click', () => { worker.postMessage({ type: 'stop' }); $('dl-progress-text').textContent = t('Stopping…'); });
+function exportProgress(done, total, text) {
+  const pct = (100 * done) / Math.max(total, 1);
+  $('dl-bar-fill').style.width = `${pct}%`;
+  $('dl-bar').setAttribute('aria-valuenow', Math.round(pct));
+  $('dl-progress-text').textContent = `${t(text)}: ${t('{d} of {n}', { d: num(done), n: num(total) })}`;
+}
+function endExport() {
+  state.exporting = false;
+  $('dl-progress').hidden = true;
+  renderTotal();
+}
+function exported(blob) {
+  endExport();
+  const name = `apus-results-${new Date().toISOString().slice(0, 10)}.zip`;
+  const url = URL.createObjectURL(blob);
+  Object.assign(document.createElement('a'), { href: url, download: name }).click();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  $('dl-status').textContent = t('Downloaded {name} ({x}).', { name, x: bytesText(blob.size) });
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────────────────────────────────

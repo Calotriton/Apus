@@ -39,9 +39,6 @@ def run_app():
         page.click("#clear-stored")                            # start from an empty browser store
         page.click("#ask-yes")                                 # the page's own confirmation dialog
         page.select_option("#csv_separator", ";")
-        page.check("#raven_tables")
-        page.check("#extract_clips")
-        page.fill("#clips_per_band", "2")
         page.set_input_files("#folder-input", str(FX / "data" / "recordings"))
         page.set_input_files("#list-folder-input", str(FX / "data" / "species_lists"))
         page.set_input_files("#syn-input", str(FX / "data" / "synonyms.csv"))
@@ -54,8 +51,18 @@ def run_app():
         print(f"run took {time.time() - t1:.0f} s")
         print(page.inner_text("#summary"))
         print([t for t in page.locator("#log li").all_text_contents() if t.startswith("Timing")])
-        with page.expect_download() as download:
-            page.click("#downloads button")
+        # The Download tab: every table, the Raven tables, and the notebook's clips (2 per 0.1 band)
+        page.click("#tab-download")
+        page.wait_for_selector("#dl-list .dl-item")
+        for item in ["predictions", "raven", "clips"]:
+            page.check(f'#dl-list input[data-id="{item}"]')
+        page.fill("#clip-per-band", "2")
+        page.locator("#clip-per-band").dispatch_event("change")
+        page.wait_for_function("/^\\d+ clips/.test(document.querySelector('#clip-plan').textContent)")
+        page.wait_for_timeout(1000)                            # the plan for 2 per band, not the first one
+        print("clips:", page.inner_text("#clip-plan"), "|", page.inner_text("#dl-total"))
+        with page.expect_download(timeout=600_000) as download:
+            page.click("#dl-run")
         data = Path(download.value.path()).read_bytes()
         browser.close()
     return zipfile.ZipFile(io.BytesIO(data))
@@ -90,8 +97,13 @@ def compare(z):
     a, b = read("clips/clips.csv", ";")
     same = set(zip(a["file"], a["start_s"], a["species"])) == set(zip(b["file"], b["start_s"], b["species"]))
     print(f"clips.csv: {len(a)} vs {len(b)} clips, same clips chosen = {same}")
+    wavs = sorted(n for n in mine if n.startswith("clips/") and n.endswith(".wav"))
+    print(f"clip files: same bytes as the notebook's = {all(z.read(mine[w]) == (NB_OUT / w).read_bytes() for w in wavs)}")
     raven = sorted(n for n in mine if n.startswith("raven/"))
     print(f"raven tables: {len(raven)}, same names = {set(raven) == {t for t in theirs if t.startswith('raven/')}}")
+    rv = lambda r: (pd.read_csv(io.BytesIO(z.read(mine[r])), sep="\t"), pd.read_csv(NB_OUT / r, sep="\t"))  # noqa: E731
+    print("  every column but Confidence identical =", all(a.drop(columns="Confidence").equals(b.drop(columns="Confidence"))
+                                                        for a, b in map(rv, raven)))
     print("run_settings.json:", json.loads(z.read(mine["run_settings.json"])))
 
 
