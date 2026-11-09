@@ -34,9 +34,12 @@ function topKHint() {
   $('top-k-hint').textContent = topKRaised ? t('Raised to {n}: up to {n} species can reach this threshold in one window', { n: topKRaised })
     : t('The best-scoring species of each window');
 }
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const facts = (parts) => parts.filter(Boolean).map((p) => `<span>${esc(p)}</span>`).join('');   // set apart by hairlines (.facts)
+const fill = (el, frac) => { el.style.transform = `scaleX(${frac})`; };                     // a progress bar, 0 to 1
 function settingsLine() {                            // the key settings, repeated beside the Run button
-  $('settings-text').textContent = t('Threshold {t} · {h} s hop · {k} species per window',
-    { t: num(Number($('threshold').value), 2), h: num(Number($('hop_s').value)), k: $('top_k').value });
+  $('settings-text').innerHTML = facts([t('Threshold {t}', { t: num(Number($('threshold').value), 2) }),
+    t('{h} s hop', { h: num(Number($('hop_s').value)) }), t('{k} species per window', { k: $('top_k').value })]);
 }
 loadSettings();
 $('threshold-range').value = $('threshold').value;
@@ -133,7 +136,7 @@ function chip(text, progress, mode = '') {
   state.chip = [text, progress, mode];
   const shown = progress == null ? t(text) : `${t(text)}: ${Math.round(progress * 100)}%`;
   $('model-text').textContent = mode === 'ready' ? t('Model ready · {backend}', { backend: translatePy(text) }) : shown;
-  $('model-bar').style.width = progress == null ? '0' : `${Math.round(progress * 100)}%`;
+  fill($('model-bar'), progress == null ? 0 : progress);
   $('model').classList.toggle('ready', mode === 'ready');
   $('model').classList.toggle('failed', mode === 'failed');
 }
@@ -166,12 +169,12 @@ const handlers = {
   log: ({ lines }) => log(lines),
   progress: ({ file, i, n, done, total, rate }) => {
     const pct = (100 * done) / Math.max(total, 1);
-    $('bar-fill').style.width = `${pct}%`;
+    fill($('bar-fill'), pct / 100);
     $('bar').setAttribute('aria-valuenow', Math.round(pct));
     $('progress-pct').textContent = `${Math.floor(pct)}%`;
     document.title = `${Math.floor(pct)}% · Apus`;
-    $('progress-text').textContent = t('Recording {i} of {n}: {file} · {rate} windows/s · {left} left',
-      { i, n, file, rate: num(rate, 1), left: duration((total - done) / Math.max(rate, 1e-9), true) });
+    $('progress-text').innerHTML = facts([t('Recording {i} of {n}: {file}', { i, n, file }),
+      t('{rate} windows/s', { rate: num(rate, 1) }), t('{left} left', { left: duration((total - done) / Math.max(rate, 1e-9), true) })]);
   },
   'confirm-replace': async () => {
     if (await ask(t('The output already holds results. Replace them with this run?'), t('Replace'), true)) start(true);
@@ -351,8 +354,8 @@ function renderCheck() {
   if (c.pending) { box.innerHTML = `<p class="hint">${esc(t('Checking the recordings…'))}</p>`; return; }
   if (c.error) { box.innerHTML = `<p class="hint">${esc(t('The recordings could not be checked: {e}', { e: translatePy(c.error) }))}</p>`; return; }
   const est = speedEstimate();
-  const facts = [t('{d} of audio', { d: duration(c.seconds) }), tn(c.windows, '{n} window of 5 s', '{n} windows of 5 s')];
-  if (est) facts.push(t(est.rough ? 'about {x} to analyse (a rough first estimate)' : 'about {x} to analyse',
+  const lines = [t('{d} of audio', { d: duration(c.seconds) }), tn(c.windows, '{n} window of 5 s', '{n} windows of 5 s')];
+  if (est) lines.push(t(est.rough ? 'about {x} to analyse (a rough first estimate)' : 'about {x} to analyse',
                         { x: duration(c.windows / est.speed) }));
   const rates = Object.entries(c.rates).sort((a, b) => b[1] - a[1]).map(([sr, n]) => `${num(Number(sr) / 1000, 1)} kHz (${n})`);
   const issues = [
@@ -361,7 +364,7 @@ function renderCheck() {
     [c.lossy, (n) => tn(n, '{n} file is compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies', '{n} files are compressed with loss (MP3, Vorbis or Opus), which can blur high frequencies'), (r) => `${r[0]} (${r[1]})`],
     [c.short, (n) => tn(n, '{n} file is shorter than 5 s and is padded with silence', '{n} files are shorter than 5 s and are padded with silence'), (r) => `${r[0]} (${num(r[1])} s)`],
   ].filter(([rows]) => rows.length);
-  box.innerHTML = `<p class="check-facts">${facts.map(esc).join(' · ')}</p>` +
+  box.innerHTML = `<p class="check-facts facts">${facts(lines)}</p>` +
     `<p class="hint">${esc(t('Sample rates: {r}', { r: rates.join(', ') }))}</p>` +
     issues.map(([rows, head, line]) => `<details class="issue"><summary><svg aria-hidden="true"><use href="#i-warn"/></svg>${esc(head(rows.length))}</summary>` +
       `<ul>${rows.slice(0, 50).map((r) => `<li>${esc(line(r))}</li>`).join('')}${rows.length > 50 ? `<li>…</li>` : ''}</ul></details>`).join('');
@@ -567,7 +570,7 @@ async function start(replace = false) {
   $('results').hidden = true;
   $('results-empty').hidden = true;
   $('progress').hidden = false;
-  $('bar-fill').style.width = '0';
+  fill($('bar-fill'), 0);
   $('bar').setAttribute('aria-valuenow', 0);
   $('progress-pct').textContent = '0%';
   $('progress-text').textContent = t('Starting…');
@@ -632,7 +635,6 @@ function notify(text) {
 }
 
 // ── Results ───────────────────────────────────────────────────────────────────────────────────────────────
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const sum = (rows, k) => rows.reduce((s, r) => s + r[k], 0);
 const fmt = (v) => (typeof v === 'number' && !Number.isInteger(v) ? num(v, 3) : v == null ? '' : typeof v === 'number' ? num(v) : String(v));
 
@@ -767,8 +769,8 @@ function renderSpeciesList() {
     : rows.map((r) => {
       const checked = r.correct + r.incorrect + r.unsure;
       return `<li><button type="button" data-species="${esc(r.species)}" ${state.species?.species === r.species ? 'aria-current="true"' : ''}>` +
-        `<span class="sp">${esc(r.species)}</span><span class="meta">${esc(tn(r.detections, '{n} detection', '{n} detections'))}` +
-        `${checked ? ` · ${esc(t('{n} checked', { n: checked }))}` : ''}</span></button></li>`;
+        `<span class="sp">${esc(r.species)}</span><span class="meta facts">${facts([tn(r.detections, '{n} detection', '{n} detections'),
+        checked && t('{n} checked', { n: checked })])}</span></button></li>`;
     }).join('') || `<li class="hint">${esc(t('No species matches.'))}</li>`;
 }
 $('species-search').addEventListener('input', renderSpeciesList);
@@ -805,7 +807,7 @@ function speciesHead(data) {
   const sample = data.rows.filter((r) => r.in_sample);
   const done = sample.filter((r) => r.verdict).length;
   return `<div class="sp-head"><h3 class="sp-title">${esc(data.species)}</h3>` +
-    `<p class="hint">${esc(tn(data.rows.length, '{n} detection', '{n} detections'))} · ${esc(t('{d} of {s} in the sample checked', { d: done, s: sample.length }))}</p>` +
+    `<p class="hint facts">${facts([tn(data.rows.length, '{n} detection', '{n} detections'), t('{d} of {s} in the sample checked', { d: done, s: sample.length })])}</p>` +
     `<div class="meter" role="img" aria-label="${esc(t('{d} of {s} in the sample checked', { d: done, s: sample.length }))}"><span style="width:${sample.length ? (100 * done) / sample.length : 0}%"></span></div></div>`;
 }
 function renderSpecies(data) {
@@ -857,7 +859,7 @@ function detRow(r) {
   return `<li class="det" tabindex="0" data-key="${esc(key)}" data-verdict="${esc(r.verdict)}" aria-label="${esc(`${num(r.confidence, 2)}, ${r.file}, ${clock(r.start_s)}`)}">` +
     `<div class="spec"><canvas width="1" height="1"></canvas><span class="window"></span><span class="playhead"></span>` +
     `<button type="button" class="play" aria-label="${esc(t('Play'))}"><svg aria-hidden="true"><use href="#i-play"/></svg></button></div>` +
-    `<div class="det-meta"><span class="conf">${num(r.confidence, 2)}</span><span class="where">${esc(r.file)} · ${clock(r.start_s)}–${clock(r.end_s)}</span>` +
+    `<div class="det-meta"><span class="conf">${num(r.confidence, 2)}</span><span class="where facts">${facts([r.file, `${clock(r.start_s)}–${clock(r.end_s)}`])}</span>` +
     `${r.in_sample ? '' : `<span class="tag">${esc(t('not in the sample'))}</span>`}</div>` +
     `<div class="verdict" role="group" aria-label="${esc(t('Verdict'))}">${[['correct', 'Correct'], ['incorrect', 'Incorrect'], ['unsure', 'Unsure']]
       .map(([v, label]) => `<button type="button" data-v="${v}" aria-pressed="${r.verdict === v}">${esc(t(label))}</button>`).join('')}</div></li>`;
@@ -1478,7 +1480,7 @@ $('dl-run').addEventListener('click', () => {
   state.exporting = true;
   $('dl-status').textContent = '';
   $('dl-progress').hidden = false;
-  $('dl-bar-fill').style.width = '0';
+  fill($('dl-bar-fill'), 0);
   $('dl-progress-text').textContent = t('Starting…');
   renderTotal();
   worker.postMessage({ type: 'export', include, methods: take('methods') ? methodsText() : '', raven: take('raven'), clips,
@@ -1487,7 +1489,7 @@ $('dl-run').addEventListener('click', () => {
 $('dl-stop').addEventListener('click', () => { worker.postMessage({ type: 'stop' }); $('dl-progress-text').textContent = t('Stopping…'); });
 function exportProgress(done, total, text) {
   const pct = (100 * done) / Math.max(total, 1);
-  $('dl-bar-fill').style.width = `${pct}%`;
+  fill($('dl-bar-fill'), pct / 100);
   $('dl-bar').setAttribute('aria-valuenow', Math.round(pct));
   $('dl-progress-text').textContent = `${t(text)}: ${t('{d} of {n}', { d: num(done), n: num(total) })}`;
 }
